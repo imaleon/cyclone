@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tetris Grandmaster Pro - PvP Tournament Edition</title>
     <!-- Include PeerJS Library for P2P connection -->
-    <script src="https://unpkg.com"></script>
+    <script src="https://cloudflare.com"></script>
     <style>
         :root {
             --bg-dark: #030409;
@@ -376,17 +376,24 @@
     let peer = null;
     let conn = null;
 
-    // Initialize Connection Framework
     function initMultiplayer() {
+        // Check if the script loaded properly
+        if (typeof Peer === 'undefined') {
+            document.getElementById('my-id-display').innerText = "Load Error";
+            document.getElementById('connection-status').innerText = "Status: Script blocked. Disable AdBlocker or use alternative CDN.";
+            console.error("PeerJS script failed to load from CDN.");
+            return;
+        }
+    
         peer = new Peer();
         
         peer.on('open', (id) => {
             document.getElementById('my-id-display').innerText = id;
             document.getElementById('connection-status').innerText = "Status: Waiting for Peer...";
         });
-
+    
         peer.on('connection', (connection) => {
-            if (conn) return; // Only support 1v1 rooms
+            if (conn) return; 
             conn = connection;
             setupReceiver();
         });
