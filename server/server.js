@@ -11,8 +11,12 @@ const wss = new WebSocket.Server({ server });
 
 const rooms = {};
 
-// Serve frontend files
-app.use(express.static(path.join(__dirname, 'public')));
+// IMPORTANT FIX
+app.use(express.static(path.join(__dirname, '../client')));
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '../client/index.html'));
+});
 
 function createRoom(code) {
     rooms[code] = {
@@ -20,16 +24,15 @@ function createRoom(code) {
     };
 }
 
-wss.on('connection', (ws) => {
+wss.on('connection', ws => {
 
-    ws.on('message', (message) => {
+    ws.on('message', message => {
 
         let data;
 
         try {
             data = JSON.parse(message);
-        } catch (err) {
-            console.log('Invalid JSON');
+        } catch {
             return;
         }
 
@@ -55,16 +58,13 @@ wss.on('connection', (ws) => {
 
             ws.room = room;
 
-            // WAITING
             if (rooms[room].players.length === 1) {
 
                 ws.send(JSON.stringify({
                     type: 'waiting'
                 }));
-            }
 
-            // START MATCH
-            if (rooms[room].players.length === 2) {
+            } else {
 
                 rooms[room].players.forEach(player => {
 
@@ -73,10 +73,11 @@ wss.on('connection', (ws) => {
                     }));
 
                 });
+
             }
         }
 
-        // PLAYER STATE UPDATE
+        // STATE UPDATE
         if (data.type === 'state') {
 
             const room = rooms[ws.room];
@@ -98,7 +99,7 @@ wss.on('connection', (ws) => {
             });
         }
 
-        // GARBAGE ATTACK
+        // ATTACK
         if (data.type === 'attack') {
 
             const room = rooms[ws.room];
@@ -119,7 +120,7 @@ wss.on('connection', (ws) => {
             });
         }
 
-        // PLAYER LOST
+        // LOSE
         if (data.type === 'lose') {
 
             const room = rooms[ws.room];
