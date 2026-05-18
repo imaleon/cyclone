@@ -4,8 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tetris Grandmaster Pro - PvP Tournament Edition</title>
-    <!-- Include PeerJS Library for P2P connection -->
-    <script src="https://cloudflare.com"></script>
+    
+    <!-- Primary Node Package Mirror CDN -->
+    <script src="https://jsdelivr.net"></script>
+    
     <style>
         :root {
             --bg-dark: #030409;
@@ -33,7 +35,6 @@
             background-size: 100% 100%, 20px 20px, 20px 20px;
         }
 
-        /* Top Multiplayer Lobby Bar */
         .lobby-bar {
             background: rgba(13, 16, 37, 0.9);
             border: 2px solid var(--border-glow);
@@ -56,7 +57,6 @@
             font-family: inherit;
         }
 
-        /* Contains Local and Opponent Screens Side-by-Side */
         .pvp-container {
             display: flex;
             gap: 40px;
@@ -78,7 +78,6 @@
             position: relative;
         }
 
-        /* Distinct color tinting for Opponent board */
         .opponent-wrapper {
             box-shadow: 0 0 30px rgba(255, 0, 127, 0.1);
             opacity: 0.85;
@@ -198,7 +197,6 @@
 </head>
 <body>
 
-    <!-- Connection Control Banner -->
     <div class="lobby-bar">
         <div>Your Lobby ID: <strong id="my-id-display" style="color:var(--neon-cyan)">Connecting...</strong></div>
         <div>
@@ -208,14 +206,12 @@
         <div id="connection-status" style="color: var(--neon-magenta)">Status: Single Player</div>
     </div>
 
-    <!-- Match Arena -->
     <div class="pvp-container">
-        
         <!-- Player 1: Local Screen -->
         <div class="game-wrapper" id="game-container">
             <div id="overlay">
                 <h2 id="overlay-msg">ONLINE TETRIS</h2>
-                <div style="font-size:0.8rem; color:#5c6999; text-align:center;">Share your Lobby ID with a friend, or enter theirs above to start a battle!</div>
+                <div id="lobby-tip-text" style="font-size:0.8rem; color:#5c6999; text-align:center;">Share your Lobby ID with a friend, or enter theirs above to start a battle!</div>
                 <button class="btn-action" id="start-btn" onclick="handleStartButton()" disabled>AWAITING CONNECTION</button>
                 <button class="btn-audio" id="audio-btn" onclick="toggleAudioMute()">AUDIO: ON</button>
             </div>
@@ -299,43 +295,26 @@
                 </div>
             </div>
         </div>
-
     </div>
 
 <script>
-    // System Configurations
     const COLS = 10, ROWS = 20, BLOCK_SIZE = 20;
     const SHAPES = {
-        'I': [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
-        'J': [[1,0,0],[1,1,1],[0,0,0]],
-        'L': [[0,0,1],[1,1,1],[0,0,0]],
-        'O': [[1,1],[1,1]],
-        'S': [[0,1,1],[1,1,0],[0,0,0]],
-        'T': [[0,1,0],[1,1,1],[0,0,0]],
-        'Z': [[1,1,0],[0,1,1],[0,0,0]]
+        'I': [,,,], 'J': [,,], 'L': [,,], 'O': [,], 'S': [,,], 'T': [,,], 'Z': [,,]
     };
     const COLORS = { 'I': '#00f0ff', 'J': '#0033ff', 'L': '#ffaa00', 'O': '#ffff00', 'S': '#00ff00', 'T': '#9900ff', 'Z': '#ff0000' };
 
-    // Core Game Mechanics State Variables
     let grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
     let currentPiece = null, nextPiece = null, holdPiece = null;
     let hasHeld = false;
     let rAF = null;
 
     const gameState = {
-        isPaused: false,
-        isActive: false,
-        score: 0,
+        isPaused: false, isActive: false, score: 0,
         highScore: parseInt(localStorage.getItem('tgm_high')) || 0,
-        lines: 0,
-        level: 1,
-        combo: 0,
-        b2b: false,
-        dropTime: 1000,
-        lastDrop: 0
+        lines: 0, level: 1, combo: 0, b2b: false, dropTime: 1000, lastDrop: 0
     };
 
-    // Canvas contexts
     const gridCtx = document.getElementById('gridCtx').getContext('2d');
     const nextCtx = document.getElementById('nextCtx').getContext('2d');
     const holdCtx = document.getElementById('holdCtx').getContext('2d');
@@ -343,7 +322,6 @@
     const oppNextCtx = document.getElementById('oppNextCtx').getContext('2d');
     const oppHoldCtx = document.getElementById('oppHoldCtx').getContext('2d');
 
-    // Synthesized Audio System
     const audio = {
         ctx: null, muted: false,
         init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
@@ -372,36 +350,54 @@
         document.getElementById('audio-btn').innerText = `AUDIO: ${audio.muted ? 'OFF' : 'ON'}`;
     }
 
-    // Networking State (PeerJS)
     let peer = null;
     let conn = null;
 
     function initMultiplayer() {
-        // Check if the script loaded properly
+        // Ultimate Fallback Strategy if primary CDN fails
         if (typeof Peer === 'undefined') {
-            document.getElementById('my-id-display').innerText = "Load Error";
-            document.getElementById('connection-status').innerText = "Status: Script blocked. Disable AdBlocker or use alternative CDN.";
-            console.error("PeerJS script failed to load from CDN.");
-            return;
+            console.warn("Primary CDN failed or blocked. Attempting injection of direct unpkg mirror script module...");
+            const scriptFallback = document.createElement('script');
+            scriptFallback.src = "https://unpkg.com";
+            scriptFallback.onload = () => {
+                console.log("Fallback PeerJS injection successful.");
+                executePeerInitialization();
+            };
+            scriptFallback.onerror = () => {
+                document.getElementById('my-id-display').innerText = "Blocked";
+                document.getElementById('connection-status').innerText = "Script blocked. Turn off AdBlock/Brave Shields.";
+                document.getElementById('lobby-tip-text').innerText = "CRITICAL ERROR: Browser security settings blocked connection libraries. Whitelist this website url to start PvP gameplay.";
+            };
+            document.head.appendChild(scriptFallback);
+        } else {
+            executePeerInitialization();
         }
-    
+    }
+
+    function executePeerInitialization() {
         peer = new Peer();
         
         peer.on('open', (id) => {
             document.getElementById('my-id-display').innerText = id;
+            document.getElementById('connection-status').style.color = "var(--neon-cyan)";
             document.getElementById('connection-status').innerText = "Status: Waiting for Peer...";
         });
-    
+
         peer.on('connection', (connection) => {
             if (conn) return; 
             conn = connection;
             setupReceiver();
         });
+
+        peer.on('error', (err) => {
+            console.error("PeerJS Core Event Loop Exception:", err);
+            document.getElementById('connection-status').innerText = "Server Error. Retrying...";
+        });
     }
 
     function connectToPeer() {
         const targetId = document.getElementById('peer-id-input').value.trim();
-        if (!targetId) return;
+        if (!targetId || !peer) return;
         conn = peer.connect(targetId);
         setupReceiver();
     }
@@ -424,7 +420,7 @@
                 document.getElementById('opp-status').innerText = data.lost ? "DEAD" : "PLAYING";
                 
                 if (data.lost && gameState.isActive) {
-                    endGame(true); // Win by knockout
+                    endGame(true);
                 }
             } else if (data.type === 'attack') {
                 receiveGarbageLines(data.lines);
@@ -439,24 +435,16 @@
         });
     }
 
-    // Outbound state synchronization loop
     function broadcastState(isGameOver = false) {
         if (!conn) return;
         conn.send({
-            type: 'sync',
-            grid: grid,
-            next: nextPiece,
-            hold: holdPiece,
-            score: gameState.score,
-            lines: gameState.lines,
-            level: gameState.level,
-            lost: isGameOver
+            type: 'sync', grid: grid, next: nextPiece, hold: holdPiece,
+            score: gameState.score, lines: gameState.lines, level: gameState.level, lost: isGameOver
         });
     }
 
-    // Tetris Game Logic Functions
     function createPiece(type) {
-        return { type, matrix: SHAPES[type].map(row => [...row]), x: Math.floor((COLS - SHAPES[type][0].length)/2), y: type==='I' ? -1 : 0 };
+        return { type, matrix: SHAPES[type].map(row => [...row]), x: Math.floor((COLS - SHAPES[type].length)/2), y: type==='I' ? -1 : 0 };
     }
 
     function getRandomPiece() {
@@ -479,13 +467,11 @@
         const oldMatrix = currentPiece.matrix;
         currentPiece.matrix = rotated;
         
-        // Basic Wall-kick simulation
-        let offset = 0;
         if (checkCollision()) {
             currentPiece.x += 1;
             if (checkCollision()) {
                 currentPiece.x -= 2;
-                if (checkCollision()) { // Revert rotation if wall kicks fail
+                if (checkCollision()) { 
                     currentPiece.x += 1;
                     currentPiece.matrix = oldMatrix;
                     return;
@@ -507,8 +493,7 @@
     }
 
     function hardDrop() {
-        let count = 0;
-        while (!checkCollision()) { currentPiece.y++; count++; }
+        while (!checkCollision()) { currentPiece.y++; }
         currentPiece.y--;
         audio.drop();
         lockPiece();
@@ -551,10 +536,7 @@
             for(let c=0; c<m[r].length; c++) {
                 if (m[r][c]) {
                     let gy = currentPiece.y + r;
-                    if (gy < 0) {
-                        endGame(false); // Defeat by top out
-                        return;
-                    }
+                    if (gy < 0) { endGame(false); return; }
                     grid[gy][currentPiece.x + c] = currentPiece.type;
                 }
             }
@@ -573,19 +555,16 @@
             if (grid[r].every(val => val !== 0 && val !== 'G')) {
                 grid.splice(r, 1);
                 grid.unshift(Array(COLS).fill(0));
-                cleared++;
-                r++;
+                cleared++; r++;
             }
         }
         if (cleared > 0) {
-            // Scoring logic
             gameState.lines += cleared;
             gameState.score += cleared * 100 * gameState.level;
             gameState.level = Math.floor(gameState.lines / 10) + 1;
             gameState.dropTime = Math.max(100, 1000 - (gameState.level * 80));
             audio.clear(cleared);
             
-            // Competitive Attacks: Clear 2 or more lines to attack opponent
             if (cleared >= 2 && conn) {
                 let attackLines = cleared === 4 ? 4 : cleared - 1; 
                 conn.send({ type: 'attack', lines: attackLines });
@@ -598,19 +577,17 @@
     }
 
     function receiveGarbageLines(count) {
-        // Shift board contents up and insert broken lines below
         for (let i = 0; i < count; i++) {
             grid.shift();
-            let garbageRow = Array(COLS).fill('G'); // 'G' token flags solid metal styling
+            let garbageRow = Array(COLS).fill('G'); 
             let holeIndex = Math.floor(Math.random() * COLS);
-            garbageRow[holeIndex] = 0; // The single dynamic escape gap
+            garbageRow[holeIndex] = 0; 
             grid.push(garbageRow);
         }
         audio.play(120, 'sawtooth', 0.2, 0.2);
         draw(); broadcastState();
     }
 
-    // Graphical Engine Rendering Pipeline
     function drawBlock(ctx, x, y, type) {
         ctx.fillStyle = type === 'G' ? '#3a3a4a' : COLORS[type];
         ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
@@ -621,14 +598,11 @@
 
     function draw() {
         gridCtx.clearRect(0, 0, 200, 400);
-        
-        // Render Fixed Grid
         for(let r=0; r<ROWS; r++) {
             for(let c=0; c<COLS; c++) {
                 if (grid[r][c]) drawBlock(gridCtx, c, r, grid[r][c]);
             }
         }
-        // Render Active Controlled Falling Piece
         if (currentPiece) {
             const m = currentPiece.matrix;
             for(let r=0; r<m.length; r++) {
@@ -639,7 +613,6 @@
                 }
             }
         }
-        // Redraw Mini Previews
         renderMini(nextPiece, nextCtx);
         renderMini(holdPiece, holdCtx);
     }
@@ -648,11 +621,10 @@
         ctx.clearRect(0, 0, 80, 80);
         if (!piece) return;
         const m = piece.matrix;
-        const sz = m.length;
-        const ox = (4 - sz) / 2;
-        const oy = (4 - sz) / 2;
-        for(let r=0; r<sz; r++) {
-            for(let c=0; c<sz; c++) {
+        const ox = (4 - m.length) / 2;
+        const oy = (4 - m.length) / 2;
+        for(let r=0; r<m.length; r++) {
+            for(let c=0; c<m[r].length; c++) {
                 if (m[r][c]) {
                     ctx.fillStyle = COLORS[piece.type];
                     ctx.fillRect((c + ox) * 20, (r + oy) * 20, 20, 20);
@@ -663,7 +635,6 @@
         }
     }
 
-    // Mirroring Opponent Rendering Pipeline
     function renderRemoteBoard(remoteGrid, ctx) {
         ctx.clearRect(0, 0, 200, 400);
         for(let r=0; r<ROWS; r++) {
@@ -694,10 +665,8 @@
         }
     }
 
-    // Game Session Engine Controls
     function handleStartButton() {
         if (!conn) return;
-        // Signal opponent to instantly spin engine loop up simultaneously
         conn.send({ type: 'start' });
         startLocalGameEngine();
     }
@@ -705,17 +674,12 @@
     function startLocalGameEngine() {
         document.getElementById('overlay').style.display = 'none';
         grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
-        gameState.score = 0;
-        gameState.lines = 0;
-        gameState.level = 1;
-        gameState.dropTime = 1000;
-        gameState.isActive = true;
-        gameState.isPaused = false;
+        gameState.score = 0; gameState.lines = 0; gameState.level = 1; gameState.dropTime = 1000;
+        gameState.isActive = true; gameState.isPaused = false;
         
         currentPiece = getRandomPiece();
         nextPiece = getRandomPiece();
-        holdPiece = null;
-        hasHeld = false;
+        holdPiece = null; hasHeld = false;
         
         gameState.lastDrop = performance.now();
         if (rAF) cancelAnimationFrame(rAF);
@@ -726,9 +690,7 @@
     function gameLoop(timestamp) {
         if (!gameState.isActive || gameState.isPaused) return;
         if (timestamp - gameState.lastDrop > gameState.dropTime) {
-            drop();
-            draw();
-            broadcastState();
+            drop(); draw(); broadcastState();
         }
         rAF = requestAnimationFrame(gameLoop);
     }
@@ -744,7 +706,6 @@
         broadcastState(true);
     }
 
-    // Hardware Keyboard Input Handling Mapping
     window.addEventListener('keydown', e => {
         if (!gameState.isActive || gameState.isPaused) return;
         switch(e.code) {
@@ -758,7 +719,7 @@
         }
     });
 
-    // Run Engine Initializer on Startup
+    // Run network initializer once fully structured
     initMultiplayer();
 </script>
 </body>
