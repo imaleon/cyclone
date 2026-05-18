@@ -1,14 +1,19 @@
-// server.js
-
+const http = require("http");
 const WebSocket = require("ws");
 
-const PORT =
-    process.env.PORT || 10000;
+const PORT = process.env.PORT || 10000;
 
-const wss =
-    new WebSocket.Server({
-        port: PORT
-    });
+const server = http.createServer((req, res) => {
+
+    res.writeHead(200);
+
+    res.end("WebSocket server running");
+
+});
+
+const wss = new WebSocket.Server({
+    server
+});
 
 const rooms = {};
 
@@ -18,13 +23,13 @@ wss.on("connection", ws => {
 
     console.log("Player connected");
 
-    ws.on("message", msg => {
+    ws.on("message", message => {
 
         let data;
 
         try {
 
-            data = JSON.parse(msg);
+            data = JSON.parse(message);
 
         } catch {
 
@@ -45,16 +50,13 @@ wss.on("connection", ws => {
 
             rooms[roomId].push(ws);
 
-            console.log(
-                "Joined room:",
-                roomId
-            );
+            console.log("Joined:", roomId);
 
             return;
 
         }
 
-        // RELAY
+        // RELAY TO ROOM
         if(roomId && rooms[roomId]) {
 
             rooms[roomId].forEach(client => {
@@ -98,7 +100,11 @@ wss.on("connection", ws => {
 
 });
 
-console.log(
-    "WebSocket running on port",
-    PORT
-);
+server.listen(PORT, () => {
+
+    console.log(
+        "Server running on port",
+        PORT
+    );
+
+});
