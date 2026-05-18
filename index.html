@@ -3,85 +3,756 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Messenger</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Tetris Grandmaster Pro - PvP Tournament Edition</title>
+    <!-- Include PeerJS Library for P2P connection -->
+    <script src="https://unpkg.com"></script>
+    <style>
+        :root {
+            --bg-dark: #030409;
+            --panel-bg: rgba(13, 16, 37, 0.85);
+            --neon-cyan: #00f0ff;
+            --neon-magenta: #ff007f;
+            --border-glow: #1a224d;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #fff;
+            font-family: 'Consolas', 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at center, #0e122b 0%, #030409 100%),
+                linear-gradient(rgba(18, 24, 54, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(18, 24, 54, 0.1) 1px, transparent 1px);
+            background-size: 100% 100%, 20px 20px, 20px 20px;
+        }
+
+        /* Top Multiplayer Lobby Bar */
+        .lobby-bar {
+            background: rgba(13, 16, 37, 0.9);
+            border: 2px solid var(--border-glow);
+            padding: 10px 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            font-size: 0.85rem;
+            z-index: 10;
+        }
+
+        .lobby-input {
+            background: #010206;
+            border: 1px solid var(--neon-cyan);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+
+        /* Contains Local and Opponent Screens Side-by-Side */
+        .pvp-container {
+            display: flex;
+            gap: 40px;
+            max-width: 100vw;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .game-wrapper {
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+            background: var(--panel-bg);
+            padding: 20px;
+            border-radius: 24px;
+            border: 2px solid var(--border-glow);
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.1);
+            backdrop-filter: blur(15px);
+            position: relative;
+        }
+
+        /* Distinct color tinting for Opponent board */
+        .opponent-wrapper {
+            box-shadow: 0 0 30px rgba(255, 0, 127, 0.1);
+            opacity: 0.85;
+        }
+
+        .canvas-area {
+            position: relative;
+            border: 3px solid #1a224d;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.9);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background: #010206;
+        }
+
+        .ui-column {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 110px;
+        }
+
+        .card {
+            background: rgba(5, 6, 15, 0.9);
+            border: 2px solid var(--border-glow);
+            border-radius: 10px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .card-label {
+            font-size: 0.65rem;
+            color: #5c6999;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+
+        .card-val {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
+        }
+
+        .opponent-text {
+            color: var(--neon-magenta) !important;
+            text-shadow: 0 0 8px rgba(255, 0, 127, 0.5) !important;
+        }
+
+        .alert-val {
+            color: var(--neon-magenta);
+            text-shadow: 0 0 8px var(--neon-magenta);
+        }
+
+        .mini-canvas {
+            background: #010206;
+            border: 1px solid #141933;
+            border-radius: 6px;
+            margin: 0 auto;
+        }
+
+        #overlay {
+            display: flex;
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(2, 3, 10, 0.96);
+            border-radius: 24px;
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #overlay h2 {
+            margin: 0; font-size: 1.8rem; color: var(--neon-cyan); letter-spacing: 3px;
+            text-shadow: 0 0 20px var(--neon-cyan);
+            text-align: center;
+        }
+
+        .btn-action {
+            background: linear-gradient(135deg, var(--neon-cyan), #00a2ff);
+            color: #030409;
+            border: none;
+            padding: 12px 24px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            font-weight: bold;
+            letter-spacing: 2px;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+            transition: all 0.2s ease;
+        }
+
+        .btn-action:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px var(--neon-cyan);
+        }
+
+        .btn-audio {
+            background: transparent;
+            border: 1px solid #5c6999;
+            color: #a5b1e2;
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <div class="app">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="menu-btn">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
-                <div class="search-box">
-                    <input type="text" placeholder="Search">
-                </div>
-            </div>
-            <div class="chat-list">
-                <div class="chat-item active">
-                    <div class="chat-avatar"></div>
-                    <div class="chat-info">
-                        <div class="chat-header">
-                            <span class="chat-name"></span>
-                            <span class="chat-time"></span>
-                        </div>
-                        <div class="chat-preview"></div>
-                    </div>
-                </div>
-                <div class="chat-item">
-                    <div class="chat-avatar"></div>
-                    <div class="chat-info">
-                        <div class="chat-header">
-                            <span class="chat-name"></span>
-                            <span class="chat-time"></span>
-                        </div>
-                        <div class="chat-preview"></div>
-                    </div>
-                </div>
-                <div class="chat-item">
-                    <div class="chat-avatar"></div>
-                    <div class="chat-info">
-                        <div class="chat-header">
-                            <span class="chat-name"></span>
-                            <span class="chat-time"></span>
-                        </div>
-                        <div class="chat-preview"></div>
-                    </div>
-                </div>
-            </div>
-        </aside>
-        <main class="chat-area">
-            <div class="chat-header-bar">
-                <div class="chat-title">
-                    <div class="chat-avatar"></div>
-                    <div class="chat-title-info">
-                        <span class="chat-title-name"></span>
-                        <span class="chat-status"></span>
-                    </div>
-                </div>
-                <div class="chat-actions">
-                    <button class="action-btn search"></button>
-                    <button class="action-btn more"></button>
-                </div>
-            </div>
-            <div class="messages">
-                <div class="message incoming">
-                    <div class="message-content"></div>
-                </div>
-                <div class="message outgoing">
-                    <div class="message-content"></div>
-                </div>
-            </div>
-            <div class="input-area">
-                <button class="attach-btn"></button>
-                <div class="message-input">
-                    <input type="text" placeholder="Message">
-                </div>
-                <button class="send-btn"></button>
-            </div>
-        </main>
+
+    <!-- Connection Control Banner -->
+    <div class="lobby-bar">
+        <div>Your Lobby ID: <strong id="my-id-display" style="color:var(--neon-cyan)">Connecting...</strong></div>
+        <div>
+            <input type="text" id="peer-id-input" class="lobby-input" placeholder="Enter Friend's ID">
+            <button class="btn-action" style="padding: 5px 12px; font-size:0.75rem;" onclick="connectToPeer()">CONNECT</button>
+        </div>
+        <div id="connection-status" style="color: var(--neon-magenta)">Status: Single Player</div>
     </div>
+
+    <!-- Match Arena -->
+    <div class="pvp-container">
+        
+        <!-- Player 1: Local Screen -->
+        <div class="game-wrapper" id="game-container">
+            <div id="overlay">
+                <h2 id="overlay-msg">ONLINE TETRIS</h2>
+                <div style="font-size:0.8rem; color:#5c6999; text-align:center;">Share your Lobby ID with a friend, or enter theirs above to start a battle!</div>
+                <button class="btn-action" id="start-btn" onclick="handleStartButton()" disabled>AWAITING CONNECTION</button>
+                <button class="btn-audio" id="audio-btn" onclick="toggleAudioMute()">AUDIO: ON</button>
+            </div>
+
+            <div class="ui-column">
+                <div class="card">
+                    <div class="card-label">Hold</div>
+                    <canvas id="holdCtx" class="mini-canvas" width="80" height="80"></canvas>
+                </div>
+                <div class="card">
+                    <div class="card-label">High Score</div>
+                    <div id="hi-score" class="card-val">0</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Score</div>
+                    <div id="score" class="card-val">0</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Combo</div>
+                    <div id="combo" class="card-val alert-val">0</div>
+                </div>
+            </div>
+
+            <div class="canvas-area">
+                <canvas id="gridCtx" width="200" height="400"></canvas>
+            </div>
+
+            <div class="ui-column">
+                <div class="card">
+                    <div class="card-label">Next</div>
+                    <canvas id="nextCtx" class="mini-canvas" width="80" height="80"></canvas>
+                </div>
+                <div class="card">
+                    <div class="card-label">Level</div>
+                    <div id="level" class="card-val">1</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Lines</div>
+                    <div id="lines" class="card-val">0</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Status</div>
+                    <div id="b2b" style="font-size:0.8rem; font-weight:bold; color:var(--neon-cyan)">READY</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player 2: Remote Opponent Screen -->
+        <div class="game-wrapper opponent-wrapper">
+            <div class="ui-column">
+                <div class="card">
+                    <div class="card-label">Opponent Hold</div>
+                    <canvas id="oppHoldCtx" class="mini-canvas" width="80" height="80"></canvas>
+                </div>
+                <div class="card">
+                    <div class="card-label">Opponent Score</div>
+                    <div id="opp-score" class="card-val opponent-text">0</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Opponent Lines</div>
+                    <div id="opp-lines" class="card-val opponent-text">0</div>
+                </div>
+            </div>
+
+            <div class="canvas-area">
+                <canvas id="oppGridCtx" width="200" height="400"></canvas>
+            </div>
+
+            <div class="ui-column">
+                <div class="card">
+                    <div class="card-label">Opponent Next</div>
+                    <canvas id="oppNextCtx" class="mini-canvas" width="80" height="80"></canvas>
+                </div>
+                <div class="card">
+                    <div class="card-label">Opponent Level</div>
+                    <div id="opp-level" class="card-val opponent-text">1</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Status</div>
+                    <div id="opp-status" style="font-size:0.8rem; font-weight:bold; color:var(--neon-magenta)">WAITING</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+    // System Configurations
+    const COLS = 10, ROWS = 20, BLOCK_SIZE = 20;
+    const SHAPES = {
+        'I': [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+        'J': [[1,0,0],[1,1,1],[0,0,0]],
+        'L': [[0,0,1],[1,1,1],[0,0,0]],
+        'O': [[1,1],[1,1]],
+        'S': [[0,1,1],[1,1,0],[0,0,0]],
+        'T': [[0,1,0],[1,1,1],[0,0,0]],
+        'Z': [[1,1,0],[0,1,1],[0,0,0]]
+    };
+    const COLORS = { 'I': '#00f0ff', 'J': '#0033ff', 'L': '#ffaa00', 'O': '#ffff00', 'S': '#00ff00', 'T': '#9900ff', 'Z': '#ff0000' };
+
+    // Core Game Mechanics State Variables
+    let grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+    let currentPiece = null, nextPiece = null, holdPiece = null;
+    let hasHeld = false;
+    let rAF = null;
+
+    const gameState = {
+        isPaused: false,
+        isActive: false,
+        score: 0,
+        highScore: parseInt(localStorage.getItem('tgm_high')) || 0,
+        lines: 0,
+        level: 1,
+        combo: 0,
+        b2b: false,
+        dropTime: 1000,
+        lastDrop: 0
+    };
+
+    // Canvas contexts
+    const gridCtx = document.getElementById('gridCtx').getContext('2d');
+    const nextCtx = document.getElementById('nextCtx').getContext('2d');
+    const holdCtx = document.getElementById('holdCtx').getContext('2d');
+    const oppGridCtx = document.getElementById('oppGridCtx').getContext('2d');
+    const oppNextCtx = document.getElementById('oppNextCtx').getContext('2d');
+    const oppHoldCtx = document.getElementById('oppHoldCtx').getContext('2d');
+
+    // Synthesized Audio System
+    const audio = {
+        ctx: null, muted: false,
+        init() { if(!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+        play(freq, type, duration, vol=0.15) {
+            this.init(); if(!this.ctx || this.muted || gameState.isPaused) return;
+            let osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+            osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + duration);
+        },
+        move() { this.play(220, 'triangle', 0.04, 0.08); },
+        kick() { this.play(330, 'triangle', 0.05, 0.08); },
+        drop() { this.play(70, 'sawtooth', 0.12, 0.15); },
+        clear(lines) { 
+            const baseFreq = [523.25, 587.33, 659.25, 783.99][Math.min(lines-1, 3)];
+            this.play(baseFreq, 'square', 0.15, 0.12); 
+            setTimeout(()=>this.play(baseFreq * 1.5, 'square', 0.2, 0.12), 70); 
+        },
+        gameOver() { this.play(150, 'sawtooth', 0.6, 0.2); }
+    };
+
+    function toggleAudioMute() {
+        audio.muted = !audio.muted;
+        document.getElementById('audio-btn').innerText = `AUDIO: ${audio.muted ? 'OFF' : 'ON'}`;
+    }
+
+    // Networking State (PeerJS)
+    let peer = null;
+    let conn = null;
+
+    // Initialize Connection Framework
+    function initMultiplayer() {
+        peer = new Peer();
+        
+        peer.on('open', (id) => {
+            document.getElementById('my-id-display').innerText = id;
+            document.getElementById('connection-status').innerText = "Status: Waiting for Peer...";
+        });
+
+        peer.on('connection', (connection) => {
+            if (conn) return; // Only support 1v1 rooms
+            conn = connection;
+            setupReceiver();
+        });
+    }
+
+    function connectToPeer() {
+        const targetId = document.getElementById('peer-id-input').value.trim();
+        if (!targetId) return;
+        conn = peer.connect(targetId);
+        setupReceiver();
+    }
+
+    function setupReceiver() {
+        conn.on('open', () => {
+            document.getElementById('connection-status').innerText = "Status: Connected to Opponent!";
+            document.getElementById('start-btn').removeAttribute('disabled');
+            document.getElementById('start-btn').innerText = "LAUNCH COMBAT";
+        });
+
+        conn.on('data', (data) => {
+            if (data.type === 'sync') {
+                renderRemoteBoard(data.grid, oppGridCtx);
+                renderRemoteMini(data.next, oppNextCtx);
+                renderRemoteMini(data.hold, oppHoldCtx);
+                document.getElementById('opp-score').innerText = data.score;
+                document.getElementById('opp-lines').innerText = data.lines;
+                document.getElementById('opp-level').innerText = data.level;
+                document.getElementById('opp-status').innerText = data.lost ? "DEAD" : "PLAYING";
+                
+                if (data.lost && gameState.isActive) {
+                    endGame(true); // Win by knockout
+                }
+            } else if (data.type === 'attack') {
+                receiveGarbageLines(data.lines);
+            } else if (data.type === 'start') {
+                startLocalGameEngine();
+            }
+        });
+
+        conn.on('close', () => {
+            alert("Opponent disconnected.");
+            location.reload();
+        });
+    }
+
+    // Outbound state synchronization loop
+    function broadcastState(isGameOver = false) {
+        if (!conn) return;
+        conn.send({
+            type: 'sync',
+            grid: grid,
+            next: nextPiece,
+            hold: holdPiece,
+            score: gameState.score,
+            lines: gameState.lines,
+            level: gameState.level,
+            lost: isGameOver
+        });
+    }
+
+    // Tetris Game Logic Functions
+    function createPiece(type) {
+        return { type, matrix: SHAPES[type].map(row => [...row]), x: Math.floor((COLS - SHAPES[type][0].length)/2), y: type==='I' ? -1 : 0 };
+    }
+
+    function getRandomPiece() {
+        const keys = Object.keys(SHAPES);
+        return createPiece(keys[Math.floor(Math.random() * keys.length)]);
+    }
+
+    function move(dir) {
+        currentPiece.x += dir;
+        if (checkCollision()) { currentPiece.x -= dir; } else { audio.move(); }
+        draw(); broadcastState();
+    }
+
+    function rotate() {
+        const matrix = currentPiece.matrix;
+        const n = matrix.length;
+        let rotated = Array.from({length: n}, () => Array(n).fill(0));
+        for(let r=0; r<n; r++) for(let c=0; c<n; c++) rotated[c][n-1-r] = matrix[r][c];
+        
+        const oldMatrix = currentPiece.matrix;
+        currentPiece.matrix = rotated;
+        
+        // Basic Wall-kick simulation
+        let offset = 0;
+        if (checkCollision()) {
+            currentPiece.x += 1;
+            if (checkCollision()) {
+                currentPiece.x -= 2;
+                if (checkCollision()) { // Revert rotation if wall kicks fail
+                    currentPiece.x += 1;
+                    currentPiece.matrix = oldMatrix;
+                    return;
+                }
+            }
+        }
+        audio.kick(); draw(); broadcastState();
+    }
+
+    function drop() {
+        currentPiece.y++;
+        if (checkCollision()) {
+            currentPiece.y--;
+            lockPiece();
+            return false;
+        }
+        gameState.lastDrop = performance.now();
+        return true;
+    }
+
+    function hardDrop() {
+        let count = 0;
+        while (!checkCollision()) { currentPiece.y++; count++; }
+        currentPiece.y--;
+        audio.drop();
+        lockPiece();
+    }
+
+    function hold() {
+        if (hasHeld) return;
+        audio.kick();
+        if (!holdPiece) {
+            holdPiece = createPiece(currentPiece.type);
+            currentPiece = nextPiece;
+            nextPiece = getRandomPiece();
+        } else {
+            const temp = holdPiece.type;
+            holdPiece = createPiece(currentPiece.type);
+            currentPiece = createPiece(temp);
+        }
+        hasHeld = true;
+        draw(); broadcastState();
+    }
+
+    function checkCollision() {
+        const m = currentPiece.matrix;
+        for(let r=0; r<m.length; r++) {
+            for(let c=0; c<m[r].length; c++) {
+                if (m[r][c]) {
+                    let gx = currentPiece.x + c;
+                    let gy = currentPiece.y + r;
+                    if (gx < 0 || gx >= COLS || gy >= ROWS) return true;
+                    if (gy >= 0 && grid[gy][gx]) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    function lockPiece() {
+        const m = currentPiece.matrix;
+        for(let r=0; r<m.length; r++) {
+            for(let c=0; c<m[r].length; c++) {
+                if (m[r][c]) {
+                    let gy = currentPiece.y + r;
+                    if (gy < 0) {
+                        endGame(false); // Defeat by top out
+                        return;
+                    }
+                    grid[gy][currentPiece.x + c] = currentPiece.type;
+                }
+            }
+        }
+        clearLines();
+        currentPiece = nextPiece;
+        nextPiece = getRandomPiece();
+        hasHeld = false;
+        if (checkCollision()) endGame(false);
+        draw(); broadcastState();
+    }
+
+    function clearLines() {
+        let cleared = 0;
+        for (let r = ROWS - 1; r >= 0; r--) {
+            if (grid[r].every(val => val !== 0 && val !== 'G')) {
+                grid.splice(r, 1);
+                grid.unshift(Array(COLS).fill(0));
+                cleared++;
+                r++;
+            }
+        }
+        if (cleared > 0) {
+            // Scoring logic
+            gameState.lines += cleared;
+            gameState.score += cleared * 100 * gameState.level;
+            gameState.level = Math.floor(gameState.lines / 10) + 1;
+            gameState.dropTime = Math.max(100, 1000 - (gameState.level * 80));
+            audio.clear(cleared);
+            
+            // Competitive Attacks: Clear 2 or more lines to attack opponent
+            if (cleared >= 2 && conn) {
+                let attackLines = cleared === 4 ? 4 : cleared - 1; 
+                conn.send({ type: 'attack', lines: attackLines });
+            }
+
+            document.getElementById('score').innerText = gameState.score;
+            document.getElementById('lines').innerText = gameState.lines;
+            document.getElementById('level').innerText = gameState.level;
+        }
+    }
+
+    function receiveGarbageLines(count) {
+        // Shift board contents up and insert broken lines below
+        for (let i = 0; i < count; i++) {
+            grid.shift();
+            let garbageRow = Array(COLS).fill('G'); // 'G' token flags solid metal styling
+            let holeIndex = Math.floor(Math.random() * COLS);
+            garbageRow[holeIndex] = 0; // The single dynamic escape gap
+            grid.push(garbageRow);
+        }
+        audio.play(120, 'sawtooth', 0.2, 0.2);
+        draw(); broadcastState();
+    }
+
+    // Graphical Engine Rendering Pipeline
+    function drawBlock(ctx, x, y, type) {
+        ctx.fillStyle = type === 'G' ? '#3a3a4a' : COLORS[type];
+        ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        ctx.strokeStyle = '#010206';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+    }
+
+    function draw() {
+        gridCtx.clearRect(0, 0, 200, 400);
+        
+        // Render Fixed Grid
+        for(let r=0; r<ROWS; r++) {
+            for(let c=0; c<COLS; c++) {
+                if (grid[r][c]) drawBlock(gridCtx, c, r, grid[r][c]);
+            }
+        }
+        // Render Active Controlled Falling Piece
+        if (currentPiece) {
+            const m = currentPiece.matrix;
+            for(let r=0; r<m.length; r++) {
+                for(let c=0; c<m[r].length; c++) {
+                    if (m[r][c] && currentPiece.y + r >= 0) {
+                        drawBlock(gridCtx, currentPiece.x + c, currentPiece.y + r, currentPiece.type);
+                    }
+                }
+            }
+        }
+        // Redraw Mini Previews
+        renderMini(nextPiece, nextCtx);
+        renderMini(holdPiece, holdCtx);
+    }
+
+    function renderMini(piece, ctx) {
+        ctx.clearRect(0, 0, 80, 80);
+        if (!piece) return;
+        const m = piece.matrix;
+        const sz = m.length;
+        const ox = (4 - sz) / 2;
+        const oy = (4 - sz) / 2;
+        for(let r=0; r<sz; r++) {
+            for(let c=0; c<sz; c++) {
+                if (m[r][c]) {
+                    ctx.fillStyle = COLORS[piece.type];
+                    ctx.fillRect((c + ox) * 20, (r + oy) * 20, 20, 20);
+                    ctx.strokeStyle = '#010206';
+                    ctx.strokeRect((c + ox) * 20, (r + oy) * 20, 20, 20);
+                }
+            }
+        }
+    }
+
+    // Mirroring Opponent Rendering Pipeline
+    function renderRemoteBoard(remoteGrid, ctx) {
+        ctx.clearRect(0, 0, 200, 400);
+        for(let r=0; r<ROWS; r++) {
+            for(let c=0; c<COLS; c++) {
+                if (remoteGrid[r][c]) {
+                    ctx.fillStyle = remoteGrid[r][c] === 'G' ? '#3a3a4a' : COLORS[remoteGrid[r][c]];
+                    ctx.fillRect(c * BLOCK_SIZE, r * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    ctx.strokeStyle = '#010206';
+                    ctx.strokeRect(c * BLOCK_SIZE, r * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                }
+            }
+        }
+    }
+
+    function renderRemoteMini(piece, ctx) {
+        ctx.clearRect(0, 0, 80, 80);
+        if (!piece) return;
+        const m = piece.matrix;
+        const ox = (4 - m.length) / 2;
+        const oy = (4 - m.length) / 2;
+        for(let r=0; r<m.length; r++) {
+            for(let c=0; c<m[r].length; c++) {
+                if (m[r][c]) {
+                    ctx.fillStyle = COLORS[piece.type];
+                    ctx.fillRect((c + ox) * 20, (r + oy) * 20, 20, 20);
+                }
+            }
+        }
+    }
+
+    // Game Session Engine Controls
+    function handleStartButton() {
+        if (!conn) return;
+        // Signal opponent to instantly spin engine loop up simultaneously
+        conn.send({ type: 'start' });
+        startLocalGameEngine();
+    }
+
+    function startLocalGameEngine() {
+        document.getElementById('overlay').style.display = 'none';
+        grid = Array.from({length: ROWS}, () => Array(COLS).fill(0));
+        gameState.score = 0;
+        gameState.lines = 0;
+        gameState.level = 1;
+        gameState.dropTime = 1000;
+        gameState.isActive = true;
+        gameState.isPaused = false;
+        
+        currentPiece = getRandomPiece();
+        nextPiece = getRandomPiece();
+        holdPiece = null;
+        hasHeld = false;
+        
+        gameState.lastDrop = performance.now();
+        if (rAF) cancelAnimationFrame(rAF);
+        rAF = requestAnimationFrame(gameLoop);
+        audio.init();
+    }
+
+    function gameLoop(timestamp) {
+        if (!gameState.isActive || gameState.isPaused) return;
+        if (timestamp - gameState.lastDrop > gameState.dropTime) {
+            drop();
+            draw();
+            broadcastState();
+        }
+        rAF = requestAnimationFrame(gameLoop);
+    }
+
+    function endGame(isWin) {
+        gameState.isActive = false;
+        cancelAnimationFrame(rAF);
+        audio.gameOver();
+        
+        document.getElementById('overlay').style.display = 'flex';
+        document.getElementById('overlay-msg').innerText = isWin ? "VICTORY" : "DEFEATED";
+        document.getElementById('start-btn').innerText = "RELOAD ARENA";
+        broadcastState(true);
+    }
+
+    // Hardware Keyboard Input Handling Mapping
+    window.addEventListener('keydown', e => {
+        if (!gameState.isActive || gameState.isPaused) return;
+        switch(e.code) {
+            case 'ArrowLeft':  move(-1); break;
+            case 'ArrowRight': move(1); break;
+            case 'ArrowDown':  drop(); draw(); broadcastState(); break;
+            case 'ArrowUp':    rotate(); break;
+            case 'Space':      hardDrop(); break;
+            case 'ShiftLeft':  
+            case 'KeyC':       hold(); break;
+        }
+    });
+
+    // Run Engine Initializer on Startup
+    initMultiplayer();
+</script>
 </body>
 </html>
