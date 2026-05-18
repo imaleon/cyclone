@@ -1,110 +1,37 @@
-const http = require("http");
-const WebSocket = require("ws");
+const express = require('express');
+const http = require('http');
+const WebSocket = require('ws');
+const path = require('path');
 
-const PORT = process.env.PORT || 10000;
+const app = express();
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(app);
 
-    res.writeHead(200);
-
-    res.end("WebSocket server running");
-
-});
-
-const wss = new WebSocket.Server({
-    server
-});
+const wss = new WebSocket.Server({ server });
 
 const rooms = {};
 
-wss.on("connection", ws => {
+app.use(express.static(path.join(__dirname, 'public')));
 
-    let roomId = null;
+function createRoom(code) {
 
-    console.log("Player connected");
+  rooms[code] = {
+    players: []
+  };
+}
 
-    ws.on("message", message => {
+wss.on('connection', ws => {
 
-        let data;
+  ws.on('message', message => {
 
-        try {
+    const data = JSON.parse(message);
 
-            data = JSON.parse(message);
+    // JOIN
+    if (data.type === 'join') {
 
-        } catch {
+      const room = data.room;
 
-            return;
-
-        }
-
-        // JOIN ROOM
-        if(data.type === "join") {
-
-            roomId = data.room;
-
-            if(!rooms[roomId]) {
-
-                rooms[roomId] = [];
-
-            }
-
-            rooms[roomId].push(ws);
-
-            console.log("Joined:", roomId);
-
-            return;
-
-        }
-
-        // RELAY TO ROOM
-        if(roomId && rooms[roomId]) {
-
-            rooms[roomId].forEach(client => {
-
-                if(
-                    client !== ws &&
-                    client.readyState === WebSocket.OPEN
-                ) {
-
-                    client.send(
-                        JSON.stringify(data)
-                    );
-
-                }
-
-            });
-
-        }
-
-    });
-
-    ws.on("close", () => {
-
-        console.log("Disconnected");
-
-        if(roomId && rooms[roomId]) {
-
-            rooms[roomId] =
-                rooms[roomId]
-                .filter(c => c !== ws);
-
-            if(rooms[roomId].length === 0) {
-
-                delete rooms[roomId];
-
-            }
-
-        }
-
-    });
-
-});
-
-server.listen(PORT, () => {
-
-    console.log(
-        "Server running on port",
-        PORT
-    );
-
-});
+      if (!rooms[room]) {
+        createRoom(room);
+      }
+    

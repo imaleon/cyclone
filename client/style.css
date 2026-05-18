@@ -1,0 +1,37 @@
+body {
+  margin: 0;
+  background: #050816;
+  color: white;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
+
+.hidden {
+  display: none;
+}
+
+.menu-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  gap: 20px;
+}
+
+.menu-screen h1 {
+  font-size: 60px;
+  color: cyan;
+}
+
+button {
+  padding: 14px 24px;
+  border: none;
+  background: cyan;
+  color: black;
+  font-weight: bold;
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+}
