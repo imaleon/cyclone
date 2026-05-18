@@ -1,28 +1,60 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+/>
 
-  <p id="status">Ready</p>
+<title>Tetris Online PvP</title>
+
+<link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+<div id="overlay">
+    <h1 id="overlayText">
+        WAITING FOR PLAYER
+    </h1>
 </div>
 
-<div class="game-layout hidden" id="gameLayout">
+<div class="wrapper">
 
-  <div class="panel">
-    <h2>YOU</h2>
-    <canvas id="game" width="240" height="480"></canvas>
+    <div class="player-area">
+        <h2>YOU</h2>
 
-    <div class="stats">
-      <div>Score: <span id="score">0</span></div>
-      <div>Lines: <span id="lines">0</span></div>
-      <div>Level: <span id="level">1</span></div>
+        <canvas
+            id="playerCanvas"
+            width="200"
+            height="400">
+        </canvas>
     </div>
-  </div>
 
-  <div class="panel">
-    <h2>OPPONENT</h2>
-    <canvas id="enemy" width="240" height="480"></canvas>
-  </div>
+    <div class="player-area">
+        <h2>ENEMY</h2>
+
+        <canvas
+            id="enemyCanvas"
+            width="200"
+            height="400">
+        </canvas>
+    </div>
 
 </div>
 
+<div class="controls">
+    ← → Move |
+    ↑ Rotate |
+    ↓ Soft Drop |
+    SPACE Hard Drop
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<script src="network.js"></script>
 <script src="game.js"></script>
+
 </body>
 </html>

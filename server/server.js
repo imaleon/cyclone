@@ -1,165 +1,100 @@
 const express = require('express');
 const http = require('http');
-const WebSocket = require('ws');
-const path = require('path');
+const cors = require('cors');
+const { Server } = require('socket.io');
 
 const app = express();
 
+app.use(cors());
+
 const server = http.createServer(app);
 
-const wss = new WebSocket.Server({ server });
-
-const rooms = {};
-
-// IMPORTANT FIX
-app.use(express.static(path.join(__dirname, '../client')));
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/index.html'));
+const io = new Server(server, {
+    cors: {
+        origin: '*'
+    }
 });
 
-function createRoom(code) {
-    rooms[code] = {
-        players: []
-    };
-}
+let waitingPlayer = null;
 
-wss.on('connection', ws => {
+const rooms = new Map();
 
-    ws.on('message', message => {
+io.on('connection', socket => {
 
-        let data;
+    console.log('CONNECTED:', socket.id);
 
-        try {
-            data = JSON.parse(message);
-        } catch {
-            return;
-        }
+    if (waitingPlayer && waitingPlayer.id !== socket.id) {
 
-        // JOIN ROOM
-        if (data.type === 'join') {
+        const roomId =
+            `room_${waitingPlayer.id}_${socket.id}`;
 
-            const room = data.room;
+        waitingPlayer.join(roomId);
+        socket.join(roomId);
 
-            if (!rooms[room]) {
-                createRoom(room);
-            }
+        rooms.set(roomId, {
+            players: [
+                waitingPlayer.id,
+                socket.id
+            ]
+        });
 
-            if (rooms[room].players.length >= 2) {
+        io.to(roomId).emit('matchFound', {
+            roomId
+        });
 
-                ws.send(JSON.stringify({
-                    type: 'full'
-                }));
+        waitingPlayer = null;
 
-                return;
-            }
+    } else {
 
-            rooms[room].players.push(ws);
+        waitingPlayer = socket;
 
-            ws.room = room;
+        socket.emit('waiting');
 
-            if (rooms[room].players.length === 1) {
+    }
 
-                ws.send(JSON.stringify({
-                    type: 'waiting'
-                }));
+    socket.on('playerUpdate', data => {
 
-            } else {
-
-                rooms[room].players.forEach(player => {
-
-                    player.send(JSON.stringify({
-                        type: 'start'
-                    }));
-
-                });
-
-            }
-        }
-
-        // STATE UPDATE
-        if (data.type === 'state') {
-
-            const room = rooms[ws.room];
-
-            if (!room) return;
-
-            room.players.forEach(player => {
-
-                if (player !== ws) {
-
-                    player.send(JSON.stringify({
-                        type: 'opponent_state',
-                        board: data.board,
-                        score: data.score
-                    }));
-
-                }
-
-            });
-        }
-
-        // ATTACK
-        if (data.type === 'attack') {
-
-            const room = rooms[ws.room];
-
-            if (!room) return;
-
-            room.players.forEach(player => {
-
-                if (player !== ws) {
-
-                    player.send(JSON.stringify({
-                        type: 'garbage',
-                        lines: data.lines
-                    }));
-
-                }
-
-            });
-        }
-
-        // LOSE
-        if (data.type === 'lose') {
-
-            const room = rooms[ws.room];
-
-            if (!room) return;
-
-            room.players.forEach(player => {
-
-                if (player !== ws) {
-
-                    player.send(JSON.stringify({
-                        type: 'win'
-                    }));
-
-                }
-
-            });
-        }
+        socket.to(data.roomId).emit(
+            'opponentUpdate',
+            data
+        );
 
     });
 
-    ws.on('close', () => {
+    socket.on('sendGarbage', data => {
 
-        const room = rooms[ws.room];
+        socket.to(data.roomId).emit(
+            'receiveGarbage',
+            {
+                amount: data.amount
+            }
+        );
 
-        if (!room) return;
+    });
 
-        room.players = room.players.filter(p => p !== ws);
+    socket.on('gameOver', data => {
 
-        if (room.players.length === 0) {
-            delete rooms[ws.room];
+        socket.to(data.roomId).emit(
+            'youWin'
+        );
+
+    });
+
+    socket.on('disconnect', () => {
+
+        console.log('DISCONNECTED:', socket.id);
+
+        if (
+            waitingPlayer &&
+            waitingPlayer.id === socket.id
+        ) {
+            waitingPlayer = null;
         }
 
     });
 
 });
 
-const PORT = process.env.PORT || 3000;
-
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+server.listen(3000, () => {
+    console.log('SERVER RUNNING ON 3000');
 });

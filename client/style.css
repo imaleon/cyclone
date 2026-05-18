@@ -1,37 +1,50 @@
 body {
-  margin: 0;
-  background: #050816;
-  color: white;
-  font-family: Arial, sans-serif;
-  overflow: hidden;
+    margin: 0;
+    background: #050816;
+    color: white;
+    font-family: Arial;
+    overflow: hidden;
 }
 
-.hidden {
-  display: none;
+.wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 50px;
+    height: 100vh;
 }
 
-.menu-screen {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  gap: 20px;
+.player-area {
+    text-align: center;
 }
 
-.menu-screen h1 {
-  font-size: 60px;
-  color: cyan;
+canvas {
+    background: black;
+    border: 3px solid cyan;
+    box-shadow: 0 0 20px cyan;
 }
 
-button {
-  padding: 14px 24px;
-  border: none;
-  background: cyan;
-  color: black;
-  font-weight: bold;
-  font-size: 18px;
-  cursor: pointer;
-  border-radius: 8px;
+#overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.9);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    z-index: 999;
 }
+
+#overlay h1 {
+    color: cyan;
+    font-size: 50px;
+}
+
+.controls {
+    position: fixed;
+    bottom: 20px;
+    width: 100%;
+    text-align: center;
+    color: #aaa;
 }
