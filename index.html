@@ -8,7 +8,7 @@
 <style>
 :root{
     --bg-dark:#030409;
-    --panel-bg:rgba(13,16,37,.85);
+    --panel-bg:rgba(13,16,37,.9);
     --neon-cyan:#00f0ff;
     --neon-magenta:#ff007f;
     --border-glow:#1a224d;
@@ -19,45 +19,47 @@
 }
 
 body{
-    background-color:var(--bg-dark);
-    color:#fff;
-    font-family:Consolas,monospace;
+    margin:0;
+    min-height:100vh;
+    background:#030409;
+    color:white;
+    font-family:Consolas, monospace;
+
     display:flex;
     justify-content:center;
     align-items:center;
-    min-height:100vh;
-    margin:0;
+
     overflow:hidden;
 
     background-image:
-        radial-gradient(circle at center,#0e122b 0%,#030409 100%),
-        linear-gradient(rgba(18,24,54,.1) 1px,transparent 1px),
-        linear-gradient(90deg,rgba(18,24,54,.1) 1px,transparent 1px);
-
-    background-size:100% 100%,20px 20px,20px 20px;
+        radial-gradient(circle at center,#0e122b 0%,#030409 100%);
 }
 
 .game-wrapper{
     display:flex;
     gap:25px;
-    background:var(--panel-bg);
-    padding:25px;
-    border-radius:24px;
-    border:2px solid var(--border-glow);
-    box-shadow:0 0 50px rgba(0,240,255,.15);
-    position:relative;
-}
 
-.canvas-area{
-    position:relative;
-    border:3px solid #1a224d;
-    border-radius:12px;
-    overflow:hidden;
+    background:var(--panel-bg);
+
+    border:2px solid var(--border-glow);
+
+    padding:25px;
+
+    border-radius:20px;
+
+    box-shadow:
+        0 0 40px rgba(0,240,255,.15);
 }
 
 canvas{
-    background:#010206;
     display:block;
+    background:#010206;
+}
+
+.canvas-area{
+    border:3px solid #1a224d;
+    border-radius:12px;
+    overflow:hidden;
 }
 
 .ui-column{
@@ -68,28 +70,27 @@ canvas{
 }
 
 .card{
-    background:rgba(5,6,15,.9);
-    border:2px solid var(--border-glow);
+    background:#070912;
+
+    border:2px solid #1a224d;
+
     border-radius:10px;
+
     padding:12px;
+
     text-align:center;
 }
 
 .card-label{
-    font-size:.75rem;
     color:#5c6999;
-    margin-bottom:6px;
+    font-size:.75rem;
+    margin-bottom:8px;
     letter-spacing:2px;
 }
 
 .card-val{
     font-size:1.4rem;
     font-weight:bold;
-}
-
-.mini-canvas{
-    border:1px solid #141933;
-    border-radius:6px;
 }
 
 .enemy-title{
@@ -100,291 +101,484 @@ canvas{
 }
 
 #overlay{
-    position:absolute;
+    position:fixed;
     inset:0;
-    z-index:100;
-    background:rgba(0,0,0,.95);
+    z-index:999;
+
+    background:rgba(0,0,0,.94);
+
     display:flex;
+    flex-direction:column;
     justify-content:center;
     align-items:center;
-    flex-direction:column;
+
     gap:20px;
-    border-radius:24px;
 }
 
-#overlay h2{
+#overlay h1{
     color:var(--neon-cyan);
-    font-size:2.5rem;
+    font-size:3rem;
 }
 
-.btn{
-    background:linear-gradient(135deg,var(--neon-cyan),#00a2ff);
-    color:#000;
+button{
+    background:
+        linear-gradient(
+            135deg,
+            var(--neon-cyan),
+            #0099ff
+        );
+
     border:none;
+
     padding:14px 28px;
+
     border-radius:10px;
+
+    font-size:1rem;
+
     font-weight:bold;
+
     cursor:pointer;
 }
+
+.room-box{
+    margin-top:10px;
+    color:#888;
+    font-size:.9rem;
+}
 </style>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-
 </head>
 <body>
 
-<div class="game-wrapper">
+<div id="overlay">
 
-    <div id="overlay">
-        <h2 id="overlay-msg">TETRIS PVP</h2>
-        <button class="btn" onclick="startGame()">START GAME</button>
+    <h1 id="overlay-text">
+        TETRIS PvP
+    </h1>
+
+    <button onclick="startGame()">
+        START
+    </button>
+
+    <div class="room-box">
+        Join same room using:
+        <br/>
+        ?room=test
     </div>
 
+</div>
+
+<div class="game-wrapper">
+
     <div class="ui-column">
+
         <div class="card">
             <div class="card-label">HOLD</div>
-            <canvas id="holdCtx" class="mini-canvas" width="80" height="80"></canvas>
+            <canvas
+                id="holdCanvas"
+                width="80"
+                height="80">
+            </canvas>
         </div>
 
         <div class="card">
             <div class="card-label">SCORE</div>
-            <div id="score" class="card-val">0</div>
+            <div id="score" class="card-val">
+                0
+            </div>
         </div>
 
         <div class="card">
             <div class="card-label">LINES</div>
-            <div id="lines" class="card-val">0</div>
+            <div id="lines" class="card-val">
+                0
+            </div>
         </div>
 
         <div class="card">
             <div class="card-label">LEVEL</div>
-            <div id="level" class="card-val">1</div>
+            <div id="level" class="card-val">
+                1
+            </div>
         </div>
+
     </div>
 
-    <!-- PLAYER -->
     <div>
-        <div class="enemy-title">YOU</div>
-        <div class="canvas-area">
-            <canvas id="gridCtx" width="200" height="400"></canvas>
+
+        <div class="enemy-title">
+            YOU
         </div>
+
+        <div class="canvas-area">
+            <canvas
+                id="gameCanvas"
+                width="200"
+                height="400">
+            </canvas>
+        </div>
+
     </div>
 
-    <!-- OPPONENT -->
     <div>
-        <div class="enemy-title">OPPONENT</div>
-        <div class="canvas-area">
-            <canvas id="enemyCtx" width="200" height="400"></canvas>
+
+        <div class="enemy-title">
+            ENEMY
         </div>
+
+        <div class="canvas-area">
+            <canvas
+                id="enemyCanvas"
+                width="200"
+                height="400">
+            </canvas>
+        </div>
+
     </div>
 
     <div class="ui-column">
+
         <div class="card">
             <div class="card-label">NEXT</div>
-            <canvas id="nextCtx" class="mini-canvas" width="80" height="80"></canvas>
+            <canvas
+                id="nextCanvas"
+                width="80"
+                height="80">
+            </canvas>
         </div>
 
         <div class="card">
             <div class="card-label">ROOM</div>
-            <div id="room-id" class="card-val">---</div>
+            <div
+                id="roomId"
+                class="card-val">
+            </div>
         </div>
 
         <div class="card">
             <div class="card-label">STATUS</div>
-            <div id="status" class="card-val">ONLINE</div>
+            <div
+                id="status"
+                class="card-val">
+                CONNECTING
+            </div>
         </div>
+
     </div>
 
 </div>
 
 <script>
 
-/* =========================
-   FIREBASE
-========================= */
+// =====================================
+// CONFIG
+// =====================================
 
-const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_DOMAIN",
-    databaseURL: "YOUR_DATABASE_URL",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_BUCKET",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
-};
-
-firebase.initializeApp(firebaseConfig);
-
-const db = firebase.database();
-
-/* =========================
-   ROOM
-========================= */
+const SERVER_URL =
+    "wss://tetrisonline.onrender.com";
 
 const ROOM_ID =
-    new URLSearchParams(location.search).get("room") || "global-room";
+    new URLSearchParams(location.search)
+    .get("room") || "global";
 
-document.getElementById("room-id").innerText = ROOM_ID;
+document.getElementById("roomId")
+.innerText = ROOM_ID;
 
-const playerId = Math.random().toString(36).substring(2,9);
+// =====================================
+// SOCKET
+// =====================================
 
-const roomRef = db.ref("rooms/" + ROOM_ID);
+const socket =
+    new WebSocket(SERVER_URL);
 
-/* =========================
-   GAME
-========================= */
+socket.addEventListener("open", () => {
+
+    document.getElementById("status")
+    .innerText = "ONLINE";
+
+    socket.send(JSON.stringify({
+
+        type:"join",
+
+        room:ROOM_ID
+
+    }));
+
+});
+
+socket.addEventListener("close", () => {
+
+    document.getElementById("status")
+    .innerText = "OFFLINE";
+
+});
+
+// =====================================
+// CONSTANTS
+// =====================================
 
 const COLS = 10;
 const ROWS = 20;
 const SIZE = 20;
 
 const COLORS = {
-    I:'#00f0ff',
-    J:'#0033ff',
-    L:'#ffaa00',
-    O:'#ffff00',
-    S:'#00ff00',
-    T:'#9900ff',
-    Z:'#ff0000'
+
+    I:"#00f0ff",
+    J:"#0033ff",
+    L:"#ffaa00",
+    O:"#ffff00",
+    S:"#00ff00",
+    T:"#9900ff",
+    Z:"#ff0000"
+
 };
 
 const SHAPES = {
-    I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
-    J:[[1,0,0],[1,1,1],[0,0,0]],
-    L:[[0,0,1],[1,1,1],[0,0,0]],
-    O:[[1,1],[1,1]],
-    S:[[0,1,1],[1,1,0],[0,0,0]],
-    T:[[0,1,0],[1,1,1],[0,0,0]],
-    Z:[[1,1,0],[0,1,1],[0,0,0]]
+
+    I:[
+        [0,0,0,0],
+        [1,1,1,1],
+        [0,0,0,0],
+        [0,0,0,0]
+    ],
+
+    J:[
+        [1,0,0],
+        [1,1,1],
+        [0,0,0]
+    ],
+
+    L:[
+        [0,0,1],
+        [1,1,1],
+        [0,0,0]
+    ],
+
+    O:[
+        [1,1],
+        [1,1]
+    ],
+
+    S:[
+        [0,1,1],
+        [1,1,0],
+        [0,0,0]
+    ],
+
+    T:[
+        [0,1,0],
+        [1,1,1],
+        [0,0,0]
+    ],
+
+    Z:[
+        [1,1,0],
+        [0,1,1],
+        [0,0,0]
+    ]
+
 };
 
-const gameState = {
-    score:0,
-    lines:0,
-    level:1,
-    isActive:false,
-    dropTime:1000,
-    lastDrop:0
-};
+// =====================================
+// CANVAS
+// =====================================
 
-let grid =
-    Array.from({length:ROWS},()=>Array(COLS).fill(0));
-
-let opponentState = {
-    grid:[]
-};
-
-let activePiece = null;
-let nextPieceType = null;
-let heldPieceType = null;
-let canHold = true;
-
-/* =========================
-   CANVAS
-========================= */
-
-const gCtx =
-    document.getElementById("gridCtx").getContext("2d");
+const gameCtx =
+    document.getElementById("gameCanvas")
+    .getContext("2d");
 
 const enemyCtx =
-    document.getElementById("enemyCtx").getContext("2d");
+    document.getElementById("enemyCanvas")
+    .getContext("2d");
 
 const holdCtx =
-    document.getElementById("holdCtx").getContext("2d");
+    document.getElementById("holdCanvas")
+    .getContext("2d");
 
 const nextCtx =
-    document.getElementById("nextCtx").getContext("2d");
+    document.getElementById("nextCanvas")
+    .getContext("2d");
 
-/* =========================
-   HELPERS
-========================= */
+// =====================================
+// GAME STATE
+// =====================================
 
-function getRandomType(){
-    const keys = Object.keys(SHAPES);
-    return keys[Math.floor(Math.random()*keys.length)];
+let grid =
+    Array.from(
+        {length:ROWS},
+        ()=>Array(COLS).fill(0)
+    );
+
+let opponentGrid = [];
+
+let activePiece = null;
+
+let nextPieceType = null;
+
+let holdPieceType = null;
+
+let canHold = true;
+
+let score = 0;
+
+let lines = 0;
+
+let level = 1;
+
+let dropInterval = 1000;
+
+let lastDrop = 0;
+
+let running = false;
+
+// =====================================
+// HELPERS
+// =====================================
+
+function randPiece(){
+
+    const keys =
+        Object.keys(SHAPES);
+
+    return keys[
+        Math.floor(Math.random()*keys.length)
+    ];
+
 }
 
 function createPiece(type){
+
     return {
+
         type,
-        matrix: JSON.parse(JSON.stringify(SHAPES[type])),
-        x:Math.floor((COLS-SHAPES[type][0].length)/2),
+
+        matrix:
+            JSON.parse(
+                JSON.stringify(SHAPES[type])
+            ),
+
+        x:
+            Math.floor(
+                (COLS-SHAPES[type][0].length)/2
+            ),
+
         y:0
+
     };
+
 }
 
-function collide(p,ox=0,oy=0,mat=p.matrix){
+function collide(piece, ox=0, oy=0){
 
-    for(let r=0;r<mat.length;r++){
-        for(let c=0;c<mat[r].length;c++){
+    for(let r=0;r<piece.matrix.length;r++){
 
-            if(mat[r][c]){
+        for(let c=0;c<piece.matrix[r].length;c++){
 
-                const nx = p.x+c+ox;
-                const ny = p.y+r+oy;
+            if(piece.matrix[r][c]){
 
-                if(nx<0 || nx>=COLS || ny>=ROWS){
+                const nx =
+                    piece.x+c+ox;
+
+                const ny =
+                    piece.y+r+oy;
+
+                if(
+                    nx<0 ||
+                    nx>=COLS ||
+                    ny>=ROWS
+                ){
                     return true;
                 }
 
-                if(ny>=0 && grid[ny][nx]){
+                if(
+                    ny>=0 &&
+                    grid[ny][nx]
+                ){
                     return true;
                 }
 
             }
 
         }
+
     }
 
     return false;
+
 }
 
-function merge(p){
+function merge(piece){
 
-    for(let r=0;r<p.matrix.length;r++){
-        for(let c=0;c<p.matrix[r].length;c++){
+    for(let r=0;r<piece.matrix.length;r++){
 
-            if(p.matrix[r][c]){
+        for(let c=0;c<piece.matrix[r].length;c++){
 
-                if(p.y+r>=0){
-                    grid[p.y+r][p.x+c]=p.type;
+            if(piece.matrix[r][c]){
+
+                if(piece.y+r>=0){
+
+                    grid[piece.y+r][piece.x+c] =
+                        piece.type;
+
                 }
 
             }
 
         }
+
     }
 
 }
 
-function rotate(p){
+function rotate(piece){
 
-    const N = p.matrix.length;
+    const N =
+        piece.matrix.length;
 
     let result =
-        Array.from({length:N},()=>Array(N).fill(0));
+        Array.from(
+            {length:N},
+            ()=>Array(N).fill(0)
+        );
 
     for(let r=0;r<N;r++){
+
         for(let c=0;c<N;c++){
-            result[c][N-1-r]=p.matrix[r][c];
+
+            result[c][N-1-r] =
+                piece.matrix[r][c];
+
         }
+
     }
 
-    if(!collide(p,0,0,result)){
-        p.matrix=result;
+    const old =
+        piece.matrix;
+
+    piece.matrix = result;
+
+    if(collide(piece)){
+
+        piece.matrix = old;
+
     }
 
 }
 
-/* =========================
-   DRAW
-========================= */
+// =====================================
+// DRAW
+// =====================================
 
-function drawBlock(ctx,x,y,type,size=SIZE){
+function drawBlock(
+    ctx,
+    x,
+    y,
+    type,
+    size=SIZE
+){
 
-    ctx.fillStyle = COLORS[type];
+    ctx.fillStyle =
+        COLORS[type];
 
     ctx.fillRect(
         x*size,
@@ -402,31 +596,42 @@ function drawBlock(ctx,x,y,type,size=SIZE){
         size,
         size
     );
+
 }
 
 function drawGrid(){
 
-    gCtx.clearRect(0,0,200,400);
+    gameCtx.clearRect(0,0,200,400);
 
     for(let r=0;r<ROWS;r++){
+
         for(let c=0;c<COLS;c++){
 
             if(grid[r][c]){
-                drawBlock(gCtx,c,r,grid[r][c]);
+
+                drawBlock(
+                    gameCtx,
+                    c,
+                    r,
+                    grid[r][c]
+                );
+
             }
 
         }
+
     }
 
     if(activePiece){
 
         for(let r=0;r<activePiece.matrix.length;r++){
+
             for(let c=0;c<activePiece.matrix[r].length;c++){
 
                 if(activePiece.matrix[r][c]){
 
                     drawBlock(
-                        gCtx,
+                        gameCtx,
                         activePiece.x+c,
                         activePiece.y+r,
                         activePiece.type
@@ -435,29 +640,37 @@ function drawGrid(){
                 }
 
             }
+
         }
 
     }
 
 }
 
-function drawOpponent(){
+function drawEnemy(){
 
     enemyCtx.clearRect(0,0,200,400);
 
-    if(!opponentState.grid) return;
-
     for(let r=0;r<ROWS;r++){
+
         for(let c=0;c<COLS;c++){
 
             const val =
-                opponentState.grid?.[r]?.[c];
+                opponentGrid?.[r]?.[c];
 
             if(val){
-                drawBlock(enemyCtx,c,r,val);
+
+                drawBlock(
+                    enemyCtx,
+                    c,
+                    r,
+                    val
+                );
+
             }
 
         }
+
     }
 
 }
@@ -468,22 +681,25 @@ function drawMini(ctx,type){
 
     if(!type) return;
 
-    const mat = SHAPES[type];
+    const mat =
+        SHAPES[type];
 
     const size = 15;
 
     const ox =
-        (80 - mat[0].length*size)/2;
+        (80-mat[0].length*size)/2;
 
     const oy =
-        (80 - mat.length*size)/2;
+        (80-mat.length*size)/2;
 
     for(let r=0;r<mat.length;r++){
+
         for(let c=0;c<mat[r].length;c++){
 
             if(mat[r][c]){
 
-                ctx.fillStyle = COLORS[type];
+                ctx.fillStyle =
+                    COLORS[type];
 
                 ctx.fillRect(
                     ox+c*size,
@@ -493,7 +709,7 @@ function drawMini(ctx,type){
                 );
 
                 ctx.strokeStyle =
-                    "rgba(255,255,255,.3)";
+                    "rgba(255,255,255,.2)";
 
                 ctx.strokeRect(
                     ox+c*size,
@@ -505,30 +721,31 @@ function drawMini(ctx,type){
             }
 
         }
+
     }
 
 }
 
-/* =========================
-   UI
-========================= */
+// =====================================
+// UI
+// =====================================
 
 function updateUI(){
 
-    document.getElementById("score").innerText =
-        gameState.score;
+    document.getElementById("score")
+    .innerText = score;
 
-    document.getElementById("lines").innerText =
-        gameState.lines;
+    document.getElementById("lines")
+    .innerText = lines;
 
-    document.getElementById("level").innerText =
-        gameState.level;
+    document.getElementById("level")
+    .innerText = level;
 
 }
 
-/* =========================
-   LINES
-========================= */
+// =====================================
+// GAMEPLAY
+// =====================================
 
 function clearLines(){
 
@@ -554,134 +771,31 @@ function clearLines(){
 
     if(cleared){
 
-        gameState.lines += cleared;
+        lines += cleared;
 
-        gameState.score +=
+        score +=
             [0,100,300,500,800][cleared];
 
-        gameState.level =
-            Math.floor(gameState.lines/10)+1;
+        level =
+            Math.floor(lines/10)+1;
 
-        gameState.dropTime =
-            Math.max(100,
-                1000 - (gameState.level-1)*70
+        dropInterval =
+            Math.max(
+                100,
+                1000-(level-1)*70
             );
 
         updateUI();
 
-        if(cleared >= 2){
+        if(cleared>=2){
+
             sendGarbage(cleared-1);
+
         }
 
     }
 
 }
-
-/* =========================
-   GARBAGE
-========================= */
-
-function sendGarbage(amount){
-
-    roomRef.child("garbage").push({
-        from:playerId,
-        amount
-    });
-
-}
-
-function receiveGarbage(amount){
-
-    for(let i=0;i<amount;i++){
-
-        grid.shift();
-
-        let row =
-            Array(COLS).fill("Z");
-
-        row[Math.floor(Math.random()*COLS)] = 0;
-
-        grid.push(row);
-
-    }
-
-}
-
-roomRef.child("garbage").on(
-    "child_added",
-    snap=>{
-
-        const data = snap.val();
-
-        if(data.from === playerId) return;
-
-        receiveGarbage(data.amount);
-
-    }
-);
-
-/* =========================
-   SPAWN
-========================= */
-
-function spawnNext(){
-
-    activePiece =
-        createPiece(nextPieceType);
-
-    nextPieceType =
-        getRandomType();
-
-    if(collide(activePiece)){
-
-        gameState.isActive=false;
-
-        document.getElementById("overlay").style.display =
-            "flex";
-
-        document.getElementById("overlay-msg").innerText =
-            "YOU LOST";
-
-        roomRef.child(playerId).update({
-            gameOver:true
-        });
-
-    }
-
-}
-
-/* =========================
-   HOLD
-========================= */
-
-function holdPiece(){
-
-    if(!canHold) return;
-
-    if(!heldPieceType){
-
-        heldPieceType = activePiece.type;
-
-        spawnNext();
-
-    }else{
-
-        const temp = activePiece.type;
-
-        activePiece =
-            createPiece(heldPieceType);
-
-        heldPieceType = temp;
-
-    }
-
-    canHold = false;
-
-}
-
-/* =========================
-   DROP
-========================= */
 
 function drop(){
 
@@ -695,7 +809,7 @@ function drop(){
 
         clearLines();
 
-        spawnNext();
+        spawnPiece();
 
         canHold = true;
 
@@ -706,87 +820,184 @@ function drop(){
 function hardDrop(){
 
     while(!collide(activePiece,0,1)){
+
         activePiece.y++;
+
     }
 
     merge(activePiece);
 
     clearLines();
 
-    spawnNext();
+    spawnPiece();
 
     canHold = true;
 
 }
 
-/* =========================
-   SYNC
-========================= */
+function spawnPiece(){
 
-function syncState(){
+    activePiece =
+        createPiece(nextPieceType);
 
-    roomRef.child(playerId).set({
+    nextPieceType =
+        randPiece();
 
-        grid,
-        score:gameState.score,
-        lines:gameState.lines,
-        gameOver:false
+    if(collide(activePiece)){
 
-    });
+        running = false;
+
+        sendState(true);
+
+        document.getElementById("overlay")
+        .style.display = "flex";
+
+        document.getElementById("overlay-text")
+        .innerText = "YOU LOST";
+
+    }
 
 }
 
-roomRef.on("value",snap=>{
+function hold(){
 
-    const players = snap.val();
+    if(!canHold) return;
 
-    if(!players) return;
+    if(!holdPieceType){
 
-    Object.keys(players).forEach(id=>{
+        holdPieceType =
+            activePiece.type;
 
-        if(id !== playerId && players[id].grid){
+        spawnPiece();
 
-            opponentState = players[id];
+    }else{
 
-            if(players[id].gameOver){
+        const temp =
+            activePiece.type;
 
-                document.getElementById("overlay").style.display =
-                    "flex";
+        activePiece =
+            createPiece(holdPieceType);
 
-                document.getElementById("overlay-msg").innerText =
-                    "YOU WIN";
+        holdPieceType = temp;
 
-            }
+    }
+
+    canHold = false;
+
+}
+
+// =====================================
+// MULTIPLAYER
+// =====================================
+
+function sendState(gameOver=false){
+
+    if(socket.readyState !== 1) return;
+
+    socket.send(JSON.stringify({
+
+        type:"state",
+
+        grid,
+
+        score,
+
+        lines,
+
+        level,
+
+        gameOver
+
+    }));
+
+}
+
+function sendGarbage(amount){
+
+    socket.send(JSON.stringify({
+
+        type:"garbage",
+
+        amount
+
+    }));
+
+}
+
+function receiveGarbage(amount){
+
+    for(let i=0;i<amount;i++){
+
+        grid.shift();
+
+        let row =
+            Array(COLS).fill("Z");
+
+        row[
+            Math.floor(
+                Math.random()*COLS
+            )
+        ] = 0;
+
+        grid.push(row);
+
+    }
+
+}
+
+socket.addEventListener("message", e => {
+
+    const data =
+        JSON.parse(e.data);
+
+    if(data.type==="state"){
+
+        opponentGrid =
+            data.grid;
+
+        if(data.gameOver){
+
+            running = false;
+
+            document.getElementById("overlay")
+            .style.display = "flex";
+
+            document.getElementById("overlay-text")
+            .innerText = "YOU WIN";
 
         }
 
-    });
+    }
+
+    if(data.type==="garbage"){
+
+        receiveGarbage(data.amount);
+
+    }
 
 });
 
-/* =========================
-   INPUT
-========================= */
+// =====================================
+// INPUT
+// =====================================
 
-window.addEventListener("keydown",e=>{
+window.addEventListener("keydown", e => {
 
-    if(!gameState.isActive) return;
+    if(!running) return;
 
     switch(e.key){
 
         case "ArrowLeft":
 
-            if(!collide(activePiece,-1,0)){
+            if(!collide(activePiece,-1,0))
                 activePiece.x--;
-            }
 
         break;
 
         case "ArrowRight":
 
-            if(!collide(activePiece,1,0)){
+            if(!collide(activePiece,1,0))
                 activePiece.x++;
-            }
 
         break;
 
@@ -802,76 +1013,91 @@ window.addEventListener("keydown",e=>{
             hardDrop();
         break;
 
+        case "Shift":
         case "c":
         case "C":
-        case "Shift":
-            holdPiece();
+            hold();
         break;
 
     }
 
 });
 
-/* =========================
-   GAME LOOP
-========================= */
+// =====================================
+// LOOP
+// =====================================
 
-function gameLoop(timestamp){
+function loop(time=0){
 
-    if(!gameState.isActive) return;
+    if(!running) return;
 
-    if(timestamp - gameState.lastDrop >
-        gameState.dropTime){
+    if(time-lastDrop > dropInterval){
 
         drop();
 
-        gameState.lastDrop = timestamp;
+        lastDrop = time;
 
     }
 
     drawGrid();
 
-    drawOpponent();
+    drawEnemy();
 
-    drawMini(holdCtx,heldPieceType);
+    drawMini(
+        holdCtx,
+        holdPieceType
+    );
 
-    drawMini(nextCtx,nextPieceType);
+    drawMini(
+        nextCtx,
+        nextPieceType
+    );
 
-    syncState();
+    sendState();
 
-    requestAnimationFrame(gameLoop);
+    requestAnimationFrame(loop);
 
 }
 
-/* =========================
-   START
-========================= */
+// =====================================
+// START
+// =====================================
 
 function startGame(){
 
-    document.getElementById("overlay").style.display =
-        "none";
+    document.getElementById("overlay")
+    .style.display = "none";
 
     grid =
-        Array.from({length:ROWS},
-            ()=>Array(COLS).fill(0));
+        Array.from(
+            {length:ROWS},
+            ()=>Array(COLS).fill(0)
+        );
 
-    gameState.score = 0;
-    gameState.lines = 0;
-    gameState.level = 1;
-    gameState.dropTime = 1000;
+    opponentGrid = [];
+
+    score = 0;
+    lines = 0;
+    level = 1;
+
+    dropInterval = 1000;
+
+    holdPieceType = null;
+
+    canHold = true;
+
+    nextPieceType =
+        randPiece();
+
+    spawnPiece();
 
     updateUI();
 
-    nextPieceType = getRandomType();
+    running = true;
 
-    spawnNext();
+    lastDrop = performance.now();
 
-    gameState.isActive = true;
-
-    gameState.lastDrop = performance.now();
-
-    requestAnimationFrame(gameLoop);
+    requestAnimationFrame(loop);
 
 }
 
