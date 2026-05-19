@@ -1,60 +1,37 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0"
-/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Online</title>
 
-<title>Tetris Online PvP</title>
-
-<link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<div id="overlay">
-    <h1 id="overlayText">
-        WAITING FOR PLAYER
-    </h1>
-</div>
+<div class="topbar">
 
-<div class="wrapper">
+    <button onclick="startSinglePlayer()">
+        SINGLE PLAYER
+    </button>
 
-    <div class="player-area">
-        <h2>YOU</h2>
+    <button onclick="findRandomMatch()">
+        RANDOM MATCH
+    </button>
 
-        <canvas
-            id="playerCanvas"
-            width="200"
-            height="400">
-        </canvas>
-    </div>
+    <button onclick="createPrivateRoom()">
+        CREATE ROOM
+    </button>
 
-    <div class="player-area">
-        <h2>ENEMY</h2>
+    <input id="roomInput" placeholder="ROOM CODE">
 
-        <canvas
-            id="enemyCanvas"
-            width="200"
-            height="400">
-        </canvas>
-    </div>
+    <button onclick="joinPrivateRoom()">
+        JOIN ROOM
+    </button>
 
 </div>
 
-<div class="controls">
-    ← → Move |
-    ↑ Rotate |
-    ↓ Soft Drop |
-    SPACE Hard Drop
-</div>
+<h2 id="status">READY</h2>
 
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-
-<script src="network.js"></script>
-<script src="game.js"></script>
-
-</body>
+<div class="boards">
 </html>

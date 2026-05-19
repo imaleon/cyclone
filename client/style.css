@@ -1,50 +1,37 @@
 body {
     margin: 0;
-    background: #050816;
+    background: #05070f;
     color: white;
     font-family: Arial;
-    overflow: hidden;
+    text-align: center;
 }
 
-.wrapper {
+.topbar {
     display: flex;
     justify-content: center;
-    align-items: center;
-    gap: 50px;
-    height: 100vh;
+    gap: 10px;
+    padding: 20px;
+    flex-wrap: wrap;
 }
 
-.player-area {
-    text-align: center;
+button {
+    background: cyan;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+input {
+    padding: 10px;
+}
+
+.boards {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
 }
 
 canvas {
-    background: black;
-    border: 3px solid cyan;
-    box-shadow: 0 0 20px cyan;
-}
-
-#overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.9);
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    z-index: 999;
-}
-
-#overlay h1 {
-    color: cyan;
-    font-size: 50px;
-}
-
-.controls {
-    position: fixed;
-    bottom: 20px;
-    width: 100%;
-    text-align: center;
-    color: #aaa;
 }
