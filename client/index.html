@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
     <title>Tetris Online</title>
 
     <link rel="stylesheet" href="style.css">
@@ -11,21 +13,23 @@
 
 <div class="topbar">
 
-    <button onclick="startSinglePlayer()">
+    <button id="singleBtn">
         SINGLE PLAYER
     </button>
 
-    <button onclick="findRandomMatch()">
+    <button id="randomBtn">
         RANDOM MATCH
     </button>
 
-    <button onclick="createPrivateRoom()">
+    <button id="createBtn">
         CREATE ROOM
     </button>
 
-    <input id="roomInput" placeholder="ROOM CODE">
+    <input
+        id="roomInput"
+        placeholder="ROOM CODE">
 
-    <button onclick="joinPrivateRoom()">
+    <button id="joinBtn">
         JOIN ROOM
     </button>
 
@@ -34,4 +38,81 @@
 <h2 id="status">READY</h2>
 
 <div class="boards">
+
+    <div>
+        <h3>YOU</h3>
+
+        <canvas
+            id="game"
+            width="300"
+            height="600">
+        </canvas>
+    </div>
+
+    <div>
+        <h3>OPPONENT</h3>
+
+        <canvas
+            id="enemy"
+            width="300"
+            height="600">
+        </canvas>
+    </div>
+
+</div>
+
+<div class="stats">
+    <div>SCORE: <span id="score">0</span></div>
+    <div>LINES: <span id="lines">0</span></div>
+    <div>LEVEL: <span id="level">1</span></div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<script src="config.js"></script>
+<script src="ui.js"></script>
+<script src="network.js"></script>
+<script src="game.js"></script>
+
+<script>
+
+document
+    .getElementById('singleBtn')
+    .addEventListener('click', () => {
+
+        if (window.startSinglePlayer) {
+            window.startSinglePlayer();
+        }
+    });
+
+document
+    .getElementById('randomBtn')
+    .addEventListener('click', () => {
+
+        if (window.findRandomMatch) {
+            window.findRandomMatch();
+        }
+    });
+
+document
+    .getElementById('createBtn')
+    .addEventListener('click', () => {
+
+        if (window.createPrivateRoom) {
+            window.createPrivateRoom();
+        }
+    });
+
+document
+    .getElementById('joinBtn')
+    .addEventListener('click', () => {
+
+        if (window.joinPrivateRoom) {
+            window.joinPrivateRoom();
+        }
+    });
+
+</script>
+
+</body>
 </html>

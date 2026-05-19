@@ -35,3 +35,7 @@ socket.on('opponentState', data => {
 
     opponentGrid = data.grid;
 }
+
+window.findRandomMatch = findRandomMatch;
+window.createPrivateRoom = createPrivateRoom;
+window.joinPrivateRoom = joinPrivateRoom;
