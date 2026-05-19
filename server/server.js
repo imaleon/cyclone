@@ -49,7 +49,7 @@ io.on("connection",socket=>{
         socket.join(room);
 
         socket.emit(
-            "roomJoined",
+            "roomCreated",
             room
         );
     });
@@ -59,13 +59,31 @@ io.on("connection",socket=>{
         const clients =
             io.sockets.adapter.rooms.get(room);
 
-        if(clients && clients.size < 2){
+        if(!clients){
 
-            socket.join(room);
+            socket.emit(
+                "roomNotFound"
+            );
 
-            io.to(room)
-                .emit("roomJoined",room);
+            return;
         }
+
+        if(clients.size >= 2){
+
+            socket.emit(
+                "roomFull"
+            );
+
+            return;
+        }
+
+        socket.join(room);
+
+        io.to(room)
+            .emit(
+                "roomJoined",
+                room
+            );
     });
 
     socket.on("board",data=>{
@@ -84,6 +102,26 @@ io.on("connection",socket=>{
                 "receiveGarbage",
                 data.garbage
             );
+    });
+
+    socket.on("lost",room=>{
+
+        socket.to(room)
+            .emit("win");
+    });
+
+    socket.on("surrender",room=>{
+
+        socket.to(room)
+            .emit("win");
+    });
+
+    socket.on("disconnect",()=>{
+
+        if(waiting === socket){
+
+            waiting = null;
+        }
     });
 });
 
