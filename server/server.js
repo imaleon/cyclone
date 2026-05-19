@@ -54,37 +54,44 @@ io.on("connection",socket=>{
         );
     });
 
-    socket.on("joinRoom",room=>{
-
-        const clients =
-            io.sockets.adapter.rooms.get(room);
-
-        if(!clients){
-
-            socket.emit(
-                "roomNotFound"
-            );
-
-            return;
-        }
-
-        if(clients.size >= 2){
-
-            socket.emit(
-                "roomFull"
-            );
-
-            return;
-        }
-
-        socket.join(room);
-
-        io.to(room)
-            .emit(
-                "roomJoined",
-                room
-            );
-    });
+	socket.on("joinRoom",room=>{
+	
+		const clients =
+			io.sockets.adapter.rooms.get(room);
+	
+		if(!clients){
+	
+			socket.emit(
+				"roomNotFound"
+			);
+	
+			return;
+		}
+	
+		if(clients.size >= 2){
+	
+			socket.emit(
+				"roomFull"
+			);
+	
+			return;
+		}
+	
+		socket.join(room);
+	
+		io.to(room)
+			.emit(
+				"roomJoined",
+				room
+			);
+	
+		setTimeout(()=>{
+	
+			io.to(room)
+				.emit("startMatch");
+	
+		},1000);
+	});
 
     socket.on("board",data=>{
 
@@ -104,17 +111,20 @@ io.on("connection",socket=>{
             );
     });
 
-    socket.on("lost",room=>{
+	socket.on("lost",room=>{
+	
+		socket.to(room)
+			.emit("win");
+	
+		io.to(room)
+			.emit("matchEnded");
+	});
 
-        socket.to(room)
-            .emit("win");
-    });
-
-    socket.on("surrender",room=>{
-
-        socket.to(room)
-            .emit("win");
-    });
+	socket.on("surrender",room=>{
+	
+		io.to(room)
+			.emit("matchEnded");
+	});
 
     socket.on("disconnect",()=>{
 
@@ -123,6 +133,24 @@ io.on("connection",socket=>{
             waiting = null;
         }
     });
+	socket.on("disconnecting",()=>{
+	
+		const rooms = [...socket.rooms];
+	
+		rooms.forEach(room=>{
+	
+			if(room !== socket.id){
+	
+				socket.to(room)
+					.emit("matchEnded");
+			}
+		});
+	
+		if(waiting === socket){
+	
+			waiting = null;
+		}
+	});
 });
 
 server.listen(
