@@ -34,6 +34,7 @@ let grid = [];
 let player = null;
 
 let score = 0;
-update();
 
 window.startSinglePlayer = startSinglePlayer;
+
+update();
