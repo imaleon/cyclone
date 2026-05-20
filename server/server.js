@@ -16,6 +16,18 @@ const rooms = {};
 
 let waiting = [];
 
+function broadcastPlayers(roomCode){
+
+    const room = rooms[roomCode];
+
+    if(!room) return;
+
+    io.to(roomCode).emit(
+        "playersUpdate",
+        room.players
+    );
+}
+
 io.on("connection",socket=>{
 
     console.log("Connected:",socket.id);
@@ -31,7 +43,9 @@ io.on("connection",socket=>{
             s => s.id !== socket.id
         );
 
-        waiting.push(socket);
+		if(!waiting.find(s=>s.id===socket.id)){
+			waiting.push(socket);
+		}
 
         // start when 2-4 players available
         if(waiting.length >= 2){
@@ -71,6 +85,8 @@ io.on("connection",socket=>{
                     "matchFound",
                     room
                 );
+				
+				broadcastPlayers(room);
             });
 
             setTimeout(()=>{
@@ -86,7 +102,13 @@ io.on("connection",socket=>{
     // CREATE ROOM
     // =========================
 
-    socket.on("createRoom",room=>{
+	socket.on("createRoom",room=>{
+	
+		if(rooms[room]){
+	
+			socket.emit("roomFull");
+			return;
+		}
 
         rooms[room] = {
             players:[socket.id],
@@ -100,6 +122,8 @@ io.on("connection",socket=>{
             "roomCreated",
             room
         );
+		
+		broadcastPlayers(room);
     });
 
     // =========================
@@ -132,6 +156,8 @@ io.on("connection",socket=>{
         socket.join(room);
 
         roomData.players.push(socket.id);
+		
+		broadcastPlayers(room);
 
         roomData.alive.push(socket.id);
 
@@ -313,6 +339,8 @@ io.on("connection",socket=>{
                 );
 
             delete room.boards[socket.id];
+			
+			broadcastPlayers(roomCode);
 
             io.to(roomCode)
                 .emit(
@@ -338,6 +366,7 @@ io.on("connection",socket=>{
             if(room.players.length === 0){
 
                 delete rooms[roomCode];
+				continue;
             }
         }
     });
