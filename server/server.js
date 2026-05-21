@@ -276,12 +276,26 @@ io.on("connection", socket => {
     // SURRENDER
     // =========================
 
-    socket.on("surrender", room => {
-
-        socket.to(room).emit("playerSurrendered", socket.id);
-
-        socket.emit("lost");
-    });
+	socket.on("surrender", room => {
+		const roomData = rooms[room];
+		if (!roomData) return;
+	
+		roomData.alive =
+			roomData.alive.filter(id => id !== socket.id);
+	
+		io.to(room).emit("playerEliminated", socket.id);
+	
+		socket.emit("lost");
+	
+		if (roomData.alive.length === 1) {
+			const winnerId = roomData.alive[0];
+	
+			io.to(winnerId).emit("win");
+			io.to(room).emit("matchEnded");
+	
+			delete rooms[room];
+		}
+	});
 
     // =========================
     // DISCONNECT
@@ -320,16 +334,15 @@ io.on("connection", socket => {
             socket.to(room).emit("playerDisconnected", socket.id);
 
             // winner check
-            if (roomData.alive.length === 1) {
-
-                const winnerId = roomData.alive[0];
-
-                io.to(winnerId).emit("win");
-                io.to(room).emit("matchEnded");
-
-                delete rooms[room];
-                return;
-            }
+			if (roomData.alive.length === 1 && roomData.started) {
+				const winnerId = roomData.alive[0];
+			
+				io.to(winnerId).emit("win");
+				io.to(room).emit("matchEnded");
+			
+				delete rooms[room];
+				return;
+			}
 
             // cleanup empty room
             if (roomData.players.length === 0) {
