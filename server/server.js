@@ -3,359 +3,574 @@ const http = require("http");
 const { Server } = require("socket.io");
 
 const app = express();
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    cors: { origin: "*" }
+    cors: {
+        origin: "*"
+    }
 });
 
-const MAX_PLAYERS = 4;
-
-let waitingPlayers = [];
+const PORT = process.env.PORT || 3000;
 
 /*
-rooms = {
-  ABCDE: {
-    players: [],
-    alive: [],
-    ready: [],
-    maxPlayers: 4,
-    started: false
-  }
-}
+========================================
+ROOM DATA
+========================================
 */
 
 const rooms = {};
 
-// =========================
-// UTIL
-// =========================
-
-function generateRoomCode() {
-    return Math.random()
-        .toString(36)
-        .substring(2, 7)
-        .toUpperCase();
+/*
+rooms[ROOM] = {
+    players: [],
+    ready: 0,
+    maxPlayers: 2,
+    started: false
 }
+*/
 
-// =========================
-// CREATE MATCH ROOM
-// =========================
+/*
+========================================
+HELPERS
+========================================
+*/
 
-function createMatchRoom(players, maxPlayers) {
+function createRoomIfMissing(room, maxPlayers = 2){
 
-    const room = generateRoomCode();
-
-    rooms[room] = {
-        players: [],
-        alive: [],
-        ready: [],
-        maxPlayers,
-        started: false
-    };
-
-    players.forEach(socket => {
-
-        socket.join(room);
-
-        rooms[room].players.push(socket.id);
-        rooms[room].alive.push(socket.id);
-
-        socket.emit("matchFound", room);
-    });
-
-    io.to(room).emit("readyUpdate", {
-        ready: 0,
-        players: rooms[room].players.length,
-        maxPlayers
-    });
-}
-
-// =========================
-// SOCKET CONNECTION
-// =========================
-
-io.on("connection", socket => {
-
-    console.log("Connected:", socket.id);
-
-    // =========================
-    // RANDOM MATCHMAKING
-    // =========================
-
-    socket.on("findMatch", data => {
-
-        const maxPlayers = data?.maxPlayers || 2;
-
-        if (waitingPlayers.find(p => p.socket.id === socket.id)) {
-            return;
-        }
-
-        waitingPlayers.push({
-            socket,
-            maxPlayers
-        });
-
-        const sameMode = waitingPlayers.filter(
-            p => p.maxPlayers === maxPlayers
-        );
-
-        if (sameMode.length >= maxPlayers) {
-
-            const selected = sameMode.slice(0, maxPlayers);
-
-            waitingPlayers = waitingPlayers.filter(
-                p => !selected.includes(p)
-            );
-
-            createMatchRoom(
-                selected.map(p => p.socket),
-                maxPlayers
-            );
-        }
-    });
-
-    // =========================
-    // CREATE ROOM
-    // =========================
-
-    socket.on("createRoom", data => {
-
-        const room = data.room;
-        const maxPlayers = data.maxPlayers || 2;
+    if(!rooms[room]){
 
         rooms[room] = {
-            players: [socket.id],
-            alive: [socket.id],
-            ready: [],
+            players: [],
+            ready: 0,
             maxPlayers,
             started: false
         };
+    }
+}
 
-        socket.join(room);
+function updateRoomPlayerCount(room){
 
-        socket.emit("roomCreated", room);
+    if(!rooms[room]) return;
 
-        io.to(room).emit("readyUpdate", {
-            ready: 0,
-            players: 1,
-            maxPlayers
-        });
+    io.to(room).emit("readyUpdate", {
+        ready: rooms[room].ready,
+        maxPlayers: rooms[room].maxPlayers,
+        players: rooms[room].players.length
     });
 
-    // =========================
-    // JOIN ROOM
-    // =========================
+    io.to(room).emit(
+        "playerCount",
+        rooms[room].players.length
+    );
+}
 
-    socket.on("joinRoom", data => {
+function removePlayerFromRoom(socket, room){
 
-        const room = data.room;
-        const roomData = rooms[room];
+    if(!rooms[room]) return;
 
-        if (!roomData) {
-            socket.emit("roomNotFound");
-            return;
-        }
-
-        if (roomData.started) {
-            socket.emit("roomFull");
-            return;
-        }
-
-        if (roomData.players.length >= roomData.maxPlayers) {
-            socket.emit("roomFull");
-            return;
-        }
-
-        socket.join(room);
-
-        roomData.players.push(socket.id);
-        roomData.alive.push(socket.id);
-
-        io.to(room).emit("roomJoined", room);
-
-        io.to(room).emit("readyUpdate", {
-            ready: roomData.ready.length,
-            players: roomData.players.length,
-            maxPlayers: roomData.maxPlayers
-        });
-    });
-
-    // =========================
-    // READY SYSTEM
-    // =========================
-
-    socket.on("playerReady", room => {
-
-        const roomData = rooms[room];
-        if (!roomData) return;
-
-        if (!roomData.ready.includes(socket.id)) {
-            roomData.ready.push(socket.id);
-        }
-
-        io.to(room).emit("readyUpdate", {
-            ready: roomData.ready.length,
-            players: roomData.players.length,
-            maxPlayers: roomData.maxPlayers
-        });
-
-        const full =
-            roomData.players.length === roomData.maxPlayers;
-
-        const allReady =
-            roomData.ready.length === roomData.maxPlayers;
-
-        if (full && allReady && !roomData.started) {
-
-            roomData.started = true;
-
-            io.to(room).emit("startMatch");
-        }
-    });
-
-    // =========================
-    // BOARD UPDATE
-    // =========================
-
-    socket.on("board", data => {
-
-        socket.to(data.room).emit("enemyBoard", {
-            id: socket.id,
-            grid: data.board
-        });
-    });
-
-    // =========================
-    // GARBAGE
-    // =========================
-
-    socket.on("garbage", data => {
-
-        const roomData = rooms[data.room];
-        if (!roomData) return;
-
-        const targets = roomData.alive.filter(
+    rooms[room].players =
+        rooms[room].players.filter(
             id => id !== socket.id
         );
 
-        if (targets.length === 0) return;
+    socket.leave(room);
 
-        const target =
-            targets[Math.floor(Math.random() * targets.length)];
+    socket.to(room).emit(
+        "playerDisconnected",
+        socket.id
+    );
 
-        io.to(target).emit("receiveGarbage", data.garbage);
-    });
+    /*
+    if match already started
+    and only 1 player remains
+    => remaining player wins
+    */
 
-    // =========================
-    // LOST
-    // =========================
+    if(
+        rooms[room].started &&
+        rooms[room].players.length === 1
+    ){
 
-    socket.on("lost", room => {
+        io.to(
+            rooms[room].players[0]
+        ).emit("win");
 
-        const roomData = rooms[room];
-        if (!roomData) return;
+        delete rooms[room];
 
-        roomData.alive =
-            roomData.alive.filter(id => id !== socket.id);
+        return;
+    }
 
-        io.to(room).emit("playerEliminated", socket.id);
+    /*
+    delete empty room
+    */
 
-        if (roomData.alive.length === 1) {
+    if(rooms[room].players.length <= 0){
 
-            const winnerId = roomData.alive[0];
+        delete rooms[room];
 
-            io.to(winnerId).emit("win");
-            io.to(room).emit("matchEnded");
+        return;
+    }
+
+    /*
+    recalc ready count
+    */
+
+    rooms[room].ready =
+        Math.min(
+            rooms[room].ready,
+            rooms[room].players.length
+        );
+
+    updateRoomPlayerCount(room);
+}
+
+/*
+========================================
+SOCKET CONNECTION
+========================================
+*/
+
+io.on("connection", socket => {
+
+    console.log(
+        "CONNECTED:",
+        socket.id
+    );
+
+    /*
+    ================================
+    GLOBAL LOBBY CHAT
+    ================================
+    */
+
+    socket.on(
+        "lobbyChatMessage",
+        msg => {
+
+            if(
+                !msg ||
+                typeof msg !== "string"
+            ) return;
+
+            msg = msg.trim();
+
+            if(!msg) return;
+
+            io.emit(
+                "lobbyChatMessage",
+                `Player: ${msg}`
+            );
+        }
+    );
+
+    /*
+    ================================
+    MATCH / ROOM CHAT
+    ================================
+    */
+
+    socket.on(
+        "matchChatMessage",
+        data => {
+
+            if(!data) return;
+
+            const room = data.room;
+            let msg = data.msg;
+
+            if(
+                !room ||
+                !msg ||
+                typeof msg !== "string"
+            ) return;
+
+            msg = msg.trim();
+
+            if(!msg) return;
+
+            socket.to(room).emit(
+                "matchChatMessage",
+                `Opponent: ${msg}`
+            );
+        }
+    );
+
+    /*
+    ================================
+    FIND RANDOM MATCH
+    ================================
+    */
+
+    socket.on(
+        "findMatch",
+        data => {
+
+            const maxPlayers =
+                data?.maxPlayers || 2;
+
+            let foundRoom = null;
+
+            for(const room in rooms){
+
+                const r = rooms[room];
+
+                if(
+                    !r.started &&
+                    r.maxPlayers === maxPlayers &&
+                    r.players.length < r.maxPlayers
+                ){
+
+                    foundRoom = room;
+
+                    break;
+                }
+            }
+
+            /*
+            create room if none found
+            */
+
+            if(!foundRoom){
+
+                foundRoom =
+                    Math.random()
+                        .toString(36)
+                        .substring(2,7)
+                        .toUpperCase();
+
+                createRoomIfMissing(
+                    foundRoom,
+                    maxPlayers
+                );
+            }
+
+            /*
+            join room
+            */
+
+            socket.join(foundRoom);
+
+            rooms[foundRoom]
+                .players
+                .push(socket.id);
+
+            socket.room = foundRoom;
+
+            updateRoomPlayerCount(
+                foundRoom
+            );
+
+            /*
+            notify joined
+            */
+
+            io.to(foundRoom).emit(
+                "matchFound",
+                foundRoom
+            );
+        }
+    );
+
+    /*
+    ================================
+    CREATE ROOM
+    ================================
+    */
+
+    socket.on(
+        "createRoom",
+        data => {
+
+            const room = data.room;
+            const maxPlayers =
+                data.maxPlayers || 2;
+
+            if(!room) return;
+
+            if(rooms[room]){
+
+                socket.emit(
+                    "roomFull"
+                );
+
+                return;
+            }
+
+            createRoomIfMissing(
+                room,
+                maxPlayers
+            );
+
+            socket.join(room);
+
+            rooms[room]
+                .players
+                .push(socket.id);
+
+            socket.room = room;
+
+            socket.emit(
+                "roomCreated",
+                room
+            );
+
+            updateRoomPlayerCount(
+                room
+            );
+        }
+    );
+
+    /*
+    ================================
+    JOIN ROOM
+    ================================
+    */
+
+    socket.on(
+        "joinRoom",
+        data => {
+
+            const room = data.room;
+
+            if(!rooms[room]){
+
+                socket.emit(
+                    "roomNotFound"
+                );
+
+                return;
+            }
+
+            if(
+                rooms[room].players.length >=
+                rooms[room].maxPlayers
+            ){
+
+                socket.emit(
+                    "roomFull"
+                );
+
+                return;
+            }
+
+            socket.join(room);
+
+            rooms[room]
+                .players
+                .push(socket.id);
+
+            socket.room = room;
+
+            io.to(room).emit(
+                "roomJoined",
+                room
+            );
+
+            updateRoomPlayerCount(
+                room
+            );
+        }
+    );
+
+    /*
+    ================================
+    READY SYSTEM
+    ================================
+    */
+
+    socket.on(
+        "playerReady",
+        room => {
+
+            if(!rooms[room]) return;
+
+            rooms[room].ready++;
+
+            updateRoomPlayerCount(
+                room
+            );
+
+            /*
+            everyone ready
+            */
+
+            if(
+                rooms[room].ready >=
+                rooms[room].players.length &&
+                rooms[room].players.length >= 2
+            ){
+
+                rooms[room].started = true;
+
+                io.to(room).emit(
+                    "startMatch"
+                );
+            }
+        }
+    );
+
+    /*
+    ================================
+    LIVE BOARD UPDATE
+    ================================
+    */
+
+    socket.on(
+        "board",
+        data => {
+
+            if(!data) return;
+
+            socket.to(data.room).emit(
+                "enemyBoard",
+                {
+                    id: socket.id,
+                    grid: data.board
+                }
+            );
+        }
+    );
+
+    /*
+    ================================
+    GARBAGE ATTACK
+    ================================
+    */
+
+    socket.on(
+        "garbage",
+        data => {
+
+            if(!data) return;
+
+            socket.to(data.room).emit(
+                "receiveGarbage",
+                data.garbage
+            );
+        }
+    );
+
+    /*
+    ================================
+    PLAYER LOST
+    ================================
+    */
+
+    socket.on(
+        "lost",
+        room => {
+
+            if(!rooms[room]) return;
+
+            socket.to(room).emit(
+                "playerEliminated",
+                socket.id
+            );
+
+            rooms[room].players =
+                rooms[room].players.filter(
+                    id => id !== socket.id
+                );
+
+            /*
+            if one remains => winner
+            */
+
+            if(
+                rooms[room].players.length === 1
+            ){
+
+                io.to(
+                    rooms[room].players[0]
+                ).emit("win");
+
+                delete rooms[room];
+            }
+        }
+    );
+
+    /*
+    ================================
+    SURRENDER
+    ================================
+    */
+
+    socket.on(
+        "surrender",
+        room => {
+
+            if(!rooms[room]) return;
+
+            socket.to(room).emit(
+                "win"
+            );
+
+            io.to(room).emit(
+                "matchEnded"
+            );
 
             delete rooms[room];
         }
-    });
+    );
 
-    // =========================
-    // SURRENDER
-    // =========================
+    /*
+    ================================
+    DISCONNECT
+    ================================
+    */
 
-	socket.on("surrender", room => {
-		const roomData = rooms[room];
-		if (!roomData) return;
-	
-		roomData.alive =
-			roomData.alive.filter(id => id !== socket.id);
-	
-		io.to(room).emit("playerEliminated", socket.id);
-	
-		socket.emit("lost");
-	
-		if (roomData.alive.length === 1) {
-			const winnerId = roomData.alive[0];
-	
-			io.to(winnerId).emit("win");
-			io.to(room).emit("matchEnded");
-	
-			delete rooms[room];
-		}
-	});
+    socket.on(
+        "disconnect",
+        () => {
 
-    // =========================
-    // DISCONNECT
-    // =========================
-
-    socket.on("disconnect", () => {
-
-        console.log("Disconnected:", socket.id);
-
-        waitingPlayers =
-            waitingPlayers.filter(
-                p => p.socket.id !== socket.id
+            console.log(
+                "DISCONNECTED:",
+                socket.id
             );
 
-        Object.keys(rooms).forEach(room => {
+            for(const room in rooms){
 
-            const roomData = rooms[room];
+                if(
+                    rooms[room].players.includes(
+                        socket.id
+                    )
+                ){
 
-            if (!roomData.players.includes(socket.id)) return;
-
-            roomData.players =
-                roomData.players.filter(id => id !== socket.id);
-
-            roomData.alive =
-                roomData.alive.filter(id => id !== socket.id);
-
-            roomData.ready =
-                roomData.ready.filter(id => id !== socket.id);
-
-            io.to(room).emit("readyUpdate", {
-                ready: roomData.ready.length,
-                players: roomData.players.length,
-                maxPlayers: roomData.maxPlayers
-            });
-
-            socket.to(room).emit("playerDisconnected", socket.id);
-
-            // winner check
-			if (roomData.alive.length === 1 && roomData.started) {
-				const winnerId = roomData.alive[0];
-			
-				io.to(winnerId).emit("win");
-				io.to(room).emit("matchEnded");
-			
-				delete rooms[room];
-				return;
-			}
-
-            // cleanup empty room
-            if (roomData.players.length === 0) {
-                delete rooms[room];
+                    removePlayerFromRoom(
+                        socket,
+                        room
+                    );
+                }
             }
-        });
-    });
+        }
+    );
 });
 
-// =========================
-// START SERVER
-// =========================
+/*
+========================================
+EXPRESS
+========================================
+*/
 
-server.listen(process.env.PORT || 3000, () => {
-    console.log("Server running");
+app.get("/", (req,res)=>{
+
+    res.send(
+        "Tetris Online Server Running"
+    );
+});
+
+/*
+========================================
+START SERVER
+========================================
+*/
+
+server.listen(PORT, () => {
+
+    console.log(
+        "SERVER RUNNING ON PORT",
+        PORT
+    );
 });
