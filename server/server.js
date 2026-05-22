@@ -18,7 +18,7 @@ const PORT = process.env.PORT || 3000;
 const rooms = {};
 
 /*
-room:
+room structure:
 {
   players: [],
   readyPlayers: {},
@@ -68,6 +68,10 @@ function clearRoomIfEmpty(room) {
     }
 }
 
+/* =========================
+   MATCH END (IMPORTANT CORE FIX)
+========================= */
+
 function endMatch(room) {
     const r = rooms[room];
     if (!r) return;
@@ -75,7 +79,14 @@ function endMatch(room) {
     r.started = false;
     r.ended = true;
     r.rematchVotes.clear();
+
+    // 🔥 force UI sync on both clients
+    io.to(room).emit("matchEnded");
 }
+
+/* =========================
+   REMOVE PLAYER (FIXED)
+========================= */
 
 function removePlayer(socket, room, reason = "leave") {
     const r = rooms[room];
@@ -91,14 +102,15 @@ function removePlayer(socket, room, reason = "leave") {
 
     socket.to(room).emit("playerDisconnected", socket.id);
 
-    /* IMPORTANT: opponent left handling */
+    // 🔥 NEW: always notify opponent properly
     if (reason === "disconnect" || reason === "leave") {
         socket.to(room).emit("opponentLeft");
+        socket.to(room).emit("matchEnded");
     }
 
     updateRoom(room);
 
-    /* WIN CONDITION */
+    // WIN CONDITION
     if (r.started && r.players.length === 1) {
         io.to(r.players[0]).emit("win");
         endMatch(room);
@@ -321,7 +333,7 @@ io.on("connection", socket => {
     });
 
     /* =========================
-       REMATCH
+       REMATCH (FIXED)
     ========================= */
 
     socket.on("rematchRequest", ({ room }) => {
