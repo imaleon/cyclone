@@ -396,29 +396,42 @@ io.on("connection", socket => {
     REMATCH
     ========================================
     */
-    socket.on(
-        "rematchRequest",
-        ({ room }) => {
-
-            if (!rooms[room]) return;
-
-            rooms[room].rematchVotes.add(
-                socket.id
-            );
-
-            if (
-                rooms[room].rematchVotes.size >=
-                rooms[room].players.length
-            ) {
-
-                rooms[room].rematchVotes.clear();
-
-                io.to(room).emit(
-                    "rematchStart"
-                );
-            }
-        }
-    );
+	socket.on(
+		"rematchRequest",
+		({ room }) => {
+	
+			if (!rooms[room]) return;
+	
+			rooms[room].rematchVotes.add(
+				socket.id
+			);
+	
+			// ✅ update all players
+			io.to(room).emit(
+				"rematchPlayerJoined",
+				{
+					ready:
+						rooms[room].rematchVotes.size,
+	
+					total:
+						rooms[room].players.length
+				}
+			);
+	
+			// ✅ everyone accepted rematch
+			if (
+				rooms[room].rematchVotes.size >=
+				rooms[room].players.length
+			) {
+	
+				rooms[room].rematchVotes.clear();
+	
+				io.to(room).emit(
+					"rematchStart"
+				);
+			}
+		}
+	);
 
     /*
     ========================================
