@@ -12,19 +12,20 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 
 /* =========================
-   ROOM STATE
+   ROOMS
 ========================= */
 
 const rooms = {};
 
 /*
-room structure:
+room:
 {
   players: [],
   readyPlayers: {},
   ready: 0,
   maxPlayers: 2,
   started: false,
+  ended: false,
   rematchVotes: Set()
 }
 */
@@ -33,23 +34,21 @@ room structure:
    HELPERS
 ========================= */
 
-function createRoomIfMissing(room, maxPlayers = 2) {
-    if (!rooms[room]) {
-        rooms[room] = {
-            players: [],
-            readyPlayers: {},
-            ready: 0,
-            maxPlayers,
-            started: false,
-            rematchVotes: new Set()
-        };
-    }
+function createRoom(room, maxPlayers = 2) {
+    rooms[room] = {
+        players: [],
+        readyPlayers: {},
+        ready: 0,
+        maxPlayers,
+        started: false,
+        ended: false,
+        rematchVotes: new Set()
+    };
 }
 
 function updateRoom(room) {
-    if (!rooms[room]) return;
-
     const r = rooms[room];
+    if (!r) return;
 
     io.to(room).emit("readyUpdate", {
         ready: r.ready,
@@ -60,17 +59,25 @@ function updateRoom(room) {
     io.to(room).emit("playerCount", r.players.length);
 }
 
-function cleanupRoom(room) {
-    if (!rooms[room]) return;
-
+function clearRoomIfEmpty(room) {
     const r = rooms[room];
+    if (!r) return;
 
     if (r.players.length === 0) {
         delete rooms[room];
     }
 }
 
-function removePlayer(socket, room) {
+function endMatch(room) {
+    const r = rooms[room];
+    if (!r) return;
+
+    r.started = false;
+    r.ended = true;
+    r.rematchVotes.clear();
+}
+
+function removePlayer(socket, room, reason = "leave") {
     const r = rooms[room];
     if (!r) return;
 
@@ -84,27 +91,20 @@ function removePlayer(socket, room) {
 
     socket.to(room).emit("playerDisconnected", socket.id);
 
+    /* IMPORTANT: opponent left handling */
+    if (reason === "disconnect" || reason === "leave") {
+        socket.to(room).emit("opponentLeft");
+    }
+
     updateRoom(room);
 
     /* WIN CONDITION */
     if (r.started && r.players.length === 1) {
         io.to(r.players[0]).emit("win");
-        r.started = false; // keep room alive for rematch/chat
+        endMatch(room);
     }
 
-    cleanupRoom(room);
-}
-
-function removeEverywhere(socket) {
-    for (const room of Object.keys(rooms)) {
-        if (rooms[room].players.includes(socket.id)) {
-            removePlayer(socket, room);
-        }
-    }
-}
-
-function generateRoomCode() {
-    return Math.random().toString(36).substring(2, 7).toUpperCase();
+    clearRoomIfEmpty(room);
 }
 
 /* =========================
@@ -115,7 +115,10 @@ io.on("connection", socket => {
 
     socket.lastBoardUpdate = 0;
 
-    /* -------- LOBBY CHAT -------- */
+    /* =========================
+       CHAT
+    ========================= */
+
     socket.on("lobbyChatMessage", msg => {
         if (typeof msg !== "string") return;
 
@@ -125,26 +128,33 @@ io.on("connection", socket => {
         io.emit("lobbyChatMessage", `Player: ${msg}`);
     });
 
-    /* -------- MATCH CHAT -------- */
     socket.on("matchChatMessage", data => {
         if (!data) return;
 
         const { room, msg } = data;
-        if (!rooms[room]) return;
-        if (typeof msg !== "string") return;
+        const r = rooms[room];
+        if (!r) return;
 
-        const clean = msg.trim().slice(0, 120);
+        const clean = String(msg).trim().slice(0, 120);
         if (!clean) return;
 
         socket.to(room).emit("matchChatMessage", `Opponent: ${clean}`);
     });
 
-    /* -------- FIND MATCH -------- */
+    /* =========================
+       MATCHMAKING
+    ========================= */
+
     socket.on("findMatch", data => {
 
-        removeEverywhere(socket);
+        for (const r of Object.keys(rooms)) {
+            if (rooms[r].players.includes(socket.id)) {
+                removePlayer(socket, r, "leave");
+            }
+        }
 
         const maxPlayers = data?.maxPlayers || 2;
+
         let found = null;
 
         for (const r in rooms) {
@@ -159,8 +169,8 @@ io.on("connection", socket => {
         }
 
         if (!found) {
-            found = generateRoomCode();
-            createRoomIfMissing(found, maxPlayers);
+            found = Math.random().toString(36).substring(2, 7).toUpperCase();
+            createRoom(found, maxPlayers);
         }
 
         socket.join(found);
@@ -172,22 +182,25 @@ io.on("connection", socket => {
         socket.emit("matchFound", found);
     });
 
-    /* -------- CREATE ROOM -------- */
     socket.on("createRoom", data => {
-
-        removeEverywhere(socket);
 
         const room = data.room;
         const maxPlayers = data.maxPlayers || 2;
 
         if (!room) return;
 
+        for (const r of Object.keys(rooms)) {
+            if (rooms[r].players.includes(socket.id)) {
+                removePlayer(socket, r, "leave");
+            }
+        }
+
         if (rooms[room]) {
             socket.emit("roomFull");
             return;
         }
 
-        createRoomIfMissing(room, maxPlayers);
+        createRoom(room, maxPlayers);
 
         socket.join(room);
         rooms[room].players.push(socket.id);
@@ -197,12 +210,15 @@ io.on("connection", socket => {
         updateRoom(room);
     });
 
-    /* -------- JOIN ROOM -------- */
     socket.on("joinRoom", data => {
 
-        removeEverywhere(socket);
-
         const room = data.room;
+
+        for (const r of Object.keys(rooms)) {
+            if (rooms[r].players.includes(socket.id)) {
+                removePlayer(socket, r, "leave");
+            }
+        }
 
         if (!rooms[room]) {
             socket.emit("roomNotFound");
@@ -224,7 +240,10 @@ io.on("connection", socket => {
         updateRoom(room);
     });
 
-    /* -------- READY -------- */
+    /* =========================
+       READY SYSTEM
+    ========================= */
+
     socket.on("playerReady", room => {
 
         const r = rooms[room];
@@ -237,16 +256,17 @@ io.on("connection", socket => {
 
         updateRoom(room);
 
-        if (
-            r.players.length >= 2 &&
-            r.ready >= r.players.length
-        ) {
+        if (r.ready >= r.players.length && r.players.length >= 2) {
             r.started = true;
+            r.ended = false;
             io.to(room).emit("startMatch");
         }
     });
 
-    /* -------- BOARD -------- */
+    /* =========================
+       GAME DATA
+    ========================= */
+
     socket.on("board", data => {
 
         const r = rooms[data.room];
@@ -262,7 +282,6 @@ io.on("connection", socket => {
         });
     });
 
-    /* -------- GARBAGE -------- */
     socket.on("garbage", data => {
         const r = rooms[data.room];
         if (!r) return;
@@ -270,7 +289,10 @@ io.on("connection", socket => {
         socket.to(data.room).emit("receiveGarbage", data.garbage);
     });
 
-    /* -------- LOST -------- */
+    /* =========================
+       LOST / WIN
+    ========================= */
+
     socket.on("lost", room => {
 
         const r = rooms[room];
@@ -283,14 +305,23 @@ io.on("connection", socket => {
 
         if (r.players.length === 1) {
             io.to(r.players[0]).emit("win");
-            r.started = false; // keep room alive
+            endMatch(room);
         }
 
-        cleanupRoom(room);
+        clearRoomIfEmpty(room);
+    });
+
+    socket.on("surrender", room => {
+
+        const r = rooms[room];
+        if (!r) return;
+
+        socket.to(room).emit("win");
+        endMatch(room);
     });
 
     /* =========================
-       REMATCH SYSTEM (NEW)
+       REMATCH
     ========================= */
 
     socket.on("rematchRequest", ({ room }) => {
@@ -300,41 +331,38 @@ io.on("connection", socket => {
 
         r.rematchVotes.add(socket.id);
 
-        io.to(room).emit("matchChatMessage",
-            `System: rematch vote ${r.rematchVotes.size}/${r.players.length}`
+        io.to(room).emit(
+            "matchChatMessage",
+            `System: rematch ${r.rematchVotes.size}/${r.players.length}`
         );
 
         if (r.rematchVotes.size === r.players.length) {
 
-            /* RESET MATCH STATE */
             r.started = false;
+            r.ended = false;
+
             r.readyPlayers = {};
             r.ready = 0;
             r.rematchVotes.clear();
 
-            io.to(room).emit("startMatch");
+            io.to(room).emit("rematchStart");
         }
     });
 
-    /* -------- SURRENDER -------- */
-    socket.on("surrender", room => {
+    /* =========================
+       LEAVE / DISCONNECT
+    ========================= */
 
-        const r = rooms[room];
-        if (!r) return;
-
-        socket.to(room).emit("win");
-
-        r.started = false; // keep room alive
-    });
-
-    /* -------- LEAVE -------- */
     socket.on("leaveRoom", room => {
-        removePlayer(socket, room);
+        removePlayer(socket, room, "leave");
     });
 
-    /* -------- DISCONNECT -------- */
     socket.on("disconnect", () => {
-        removeEverywhere(socket);
+        for (const room of Object.keys(rooms)) {
+            if (rooms[room].players.includes(socket.id)) {
+                removePlayer(socket, room, "disconnect");
+            }
+        }
     });
 });
 
