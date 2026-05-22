@@ -1,0 +1,2703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tetris Grandmaster Online</title>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+:root{
+    --bg:#030409;
+    --panel:#0d1025dd;
+    --cyan:#00f0ff;
+    --mag:#ff007f;
+    --border:#1a224d;
+}
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    background:#030409;
+    color:white;
+    font-family:Consolas, monospace;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:100vh;
+
+    background-image:
+        radial-gradient(circle at center,#101735 0%,#030409 100%);
+}
+
+h1{
+    color:var(--cyan);
+    text-shadow:0 0 20px var(--cyan);
+}
+
+#menu{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    width:300px;
+    background:var(--panel);
+    padding:20px;
+    border-radius:16px;
+    border:2px solid var(--border);
+    margin-bottom:20px;
+}
+
+select{
+    padding:14px;
+    border:none;
+    border-radius:10px;
+    font-family:inherit;
+    font-size:1rem;
+    background:#050814;
+    color:white;
+    border:1px solid #253066;
+}
+
+button,input{
+    padding:14px;
+    border:none;
+    border-radius:10px;
+    font-family:inherit;
+    font-size:1rem;
+}
+
+button{
+    cursor:pointer;
+    background:linear-gradient(135deg,var(--cyan),#008cff);
+    color:black;
+    font-weight:bold;
+}
+
+button:hover{
+    transform:scale(1.03);
+}
+
+input{
+    background:#050814;
+    color:white;
+    border:1px solid #253066;
+    text-transform:uppercase;
+}
+
+#status{
+    text-align:center;
+    color:var(--cyan);
+}
+
+#gameArea{
+    display:none;
+    gap:20px;
+    align-items:flex-start;
+}
+
+.panel{
+    width:150px;
+    display:flex;
+    flex-direction:column;
+    gap:15px;
+}
+
+.card{
+    background:var(--panel);
+    padding:10px;
+    border-radius:12px;
+    border:2px solid var(--border);
+    text-align:center;
+}
+
+.label{
+    color:#8090c9;
+    font-size:.8rem;
+    margin-bottom:6px;
+}
+
+.value{
+    font-size:1.5rem;
+    font-weight:bold;
+}
+
+canvas{
+    background:#010206;
+    border-radius:10px;
+}
+
+#board{
+    border:3px solid var(--border);
+}
+
+.small{
+    border:2px solid var(--border);
+}
+
+#enemyBoard{
+    opacity:.8;
+}
+
+#opponentsContainer{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:10px;
+    width:260px;
+}
+
+.enemyBox{
+    background:#050814;
+    border:2px solid var(--border);
+    border-radius:10px;
+    padding:5px;
+    text-align:center;
+}
+
+.enemyName{
+    font-size:.7rem;
+    color:var(--cyan);
+    margin-bottom:4px;
+}
+
+.enemyCanvas{
+    background:#010206;
+    border-radius:6px;
+}
+
+#playerCount{
+    text-align:center;
+    color:#8090c9;
+    font-size:.9rem;
+}
+
+canvas {
+    touch-action: none;
+}
+
+#gameWrapper {
+    transform-origin: top center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* optional safety for mobile */
+body {
+    overflow-x: hidden;
+}
+
+h1 {
+    text-align: center;
+}
+
+body {
+    overflow: hidden;
+}
+
+#lobbyPanel{
+    width:220px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+#chatBox{
+    height:200px;
+    overflow-y:auto;
+    background:#050814;
+    border:1px solid #253066;
+    border-radius:10px;
+    padding:6px;
+    font-size:.75rem;
+}
+
+.chatMsg{
+    margin-bottom:5px;
+    color:#cfe3ff;
+}
+
+#leftSidebar{
+    position:fixed;
+
+    left:-300px;
+
+    top:50%;
+    transform:translateY(-50%);
+
+    width:220px;
+
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+
+    z-index:1000;
+}
+
+.chatBox{
+    height:220px;
+
+    max-height:220px;
+
+    overflow-y:auto;
+
+    overflow-x:hidden;
+
+    word-wrap:break-word;
+
+    overflow-wrap:break-word;
+
+    white-space:pre-wrap;
+
+    background:#050814;
+
+    border:1px solid #253066;
+
+    border-radius:10px;
+
+    padding:8px;
+
+    font-size:.75rem;
+
+    display:flex;
+
+    flex-direction:column;
+
+    gap:6px;
+}
+
+/* custom scrollbar */
+.chatBox::-webkit-scrollbar{
+    width:8px;
+}
+
+.chatBox::-webkit-scrollbar-track{
+    background:#050814;
+}
+
+.chatBox::-webkit-scrollbar-thumb{
+    background:#253066;
+    border-radius:10px;
+}
+
+.chatBox::-webkit-scrollbar-thumb:hover{
+    background:#3a4ea3;
+}
+
+.chatMsg{
+    width:100%;
+
+    padding:6px 8px;
+
+    background:#0b1330;
+
+    border-radius:8px;
+
+    color:#cfe3ff;
+
+    line-height:1.35;
+
+    word-break:break-word;
+
+    overflow-wrap:anywhere;
+}
+
+.chatInputRow{
+    display:flex;
+    gap:5px;
+    margin-top:8px;
+}
+
+.chatInputRow input{
+    flex:1;
+    padding:10px;
+    font-size:.75rem;
+}
+
+.chatInputRow button{
+    padding:10px;
+}
+
+#matchChatPanel {
+    pointer-events: auto;
+    z-index: 9999;
+}
+
+canvas {
+    pointer-events: auto;
+}
+
+#mobileControls{
+    position:fixed;
+    bottom:15px;
+    left:-40%;
+    width:207%;
+    display:flex;
+    justify-content:space-between;
+    padding:0 15px;
+    z-index:9999;
+    pointer-events:none;
+}
+
+#mobileLeft, #mobileRight{
+    display:flex;
+    gap:8px;
+    pointer-events:auto;
+}
+
+.mbtn{
+    width:75px;
+    height:75px;
+    border-radius:12px;
+    border:1px solid #253066;
+    background:#0d1025;
+    color:#00f0ff;
+    font-weight:bold;
+    font-size:12px;
+    box-shadow:0 0 10px rgba(0,240,255,.15);
+}
+
+.mbtn:active{
+    transform:scale(0.92);
+}
+
+.menuBtn{
+    background:#1a224d;
+    color:white;
+}
+
+/* HIDE by default on desktop */
+#mobileControls{
+    display:none;
+}
+
+/* SHOW only on mobile */
+@media (max-width: 768px){
+
+    #mobileControls{
+        display:flex;
+    }
+
+}
+</style>
+</head>
+
+<body>
+
+<div id="gameWrapper">
+
+<h1>TETRA CLASH ONLINE</h1>
+
+<div id="menu">
+
+    <button onclick="startSolo()">
+        SOLO PLAY
+    </button>
+	
+	<select id="matchType">
+		<option value="2">1 VS 1</option>
+		<option value="3">1 VS 2</option>
+		<option value="4">1 VS 3</option>
+	</select>
+	
+	<button onclick="readyUp()" id="readyBtn" style="display:none;">
+		READY
+	</button>
+
+    <button onclick="findMatch()">
+        RANDOM PVP
+    </button>
+
+    <input
+        id="roomCode"
+        placeholder="ROOM CODE"
+    />
+
+    <button onclick="createRoom()">
+        CREATE ROOM
+    </button>
+
+    <button onclick="joinRoom()">
+        JOIN ROOM
+    </button>
+
+	<div id="roomDisplay"></div>
+	
+	<div id="status">
+		READY
+	</div>
+	<div id="playerCount">
+		PLAYERS: 1/4
+	</div>
+</div>
+
+<div id="leftSidebar">
+
+    <!-- LOBBY LIST -->
+    <div class="card">
+        <div class="label">LOBBY</div>
+
+        <div id="lobbyList">
+            Waiting...
+        </div>
+    </div>
+
+    <!-- GLOBAL / MENU CHAT -->
+    <div class="card" id="lobbyChatPanel">
+        <div class="label">LOBBY CHAT</div>
+
+        <div id="lobbyChatBox" class="chatBox"></div>
+
+        <div class="chatInputRow">
+            <input id="lobbyChatInput" placeholder="message..." />
+
+            <button onclick="sendLobbyChat()">
+                SEND
+            </button>
+        </div>
+    </div>
+
+    <!-- MATCH CHAT -->
+    <div
+        class="card"
+        id="matchChatPanel"
+        style="display:none;"
+    >
+        <div class="label">MATCH CHAT</div>
+
+        <div id="matchChatBox" class="chatBox"></div>
+
+        <div class="chatInputRow">
+            <input id="matchChatInput" placeholder="team trash talk..." />
+
+            <button onclick="sendMatchChat()">
+                SEND
+            </button>
+        </div>
+    </div>
+
+</div>
+
+<div id="gameArea">
+
+    <div class="panel">
+
+        <div class="card">
+            <div class="label">HOLD</div>
+            <canvas id="hold" width="80" height="80" class="small"></canvas>
+        </div>
+		
+		<div class="card">
+			<div class="label">BEST</div>
+			<div id="bestScore" class="value">0</div>
+		</div>
+
+        <div class="card">
+            <div class="label">SCORE</div>
+            <div id="score" class="value">0</div>
+        </div>
+
+        <div class="card">
+            <div class="label">LINES</div>
+            <div id="lines" class="value">0</div>
+        </div>
+
+        <div class="card">
+            <div class="label">LEVEL</div>
+            <div id="level" class="value">1</div>
+        </div>
+		<div class="card">
+			<div class="label">MENU</div>
+		
+			<button onclick="backToMenu()">
+				MAIN MENU
+			</button>
+		</div>
+    </div>
+
+    <canvas id="board" width="300" height="600"></canvas>
+	
+	<!-- MOBILE CONTROL PAD -->
+	<div id="mobileControls">
+	
+		<!-- LEFT SIDE (movement + menu button) -->
+		<div id="mobileLeft">
+			<button class="mbtn" onclick="piece && moveLeft()">◀</button>
+	
+			<button class="mbtn" onclick="piece && moveRight()">▶</button>
+		</div>
+	
+		<!-- RIGHT SIDE (actions like PC controls) -->
+		<div id="mobileRight">
+			<button class="mbtn" onclick="rotate(true)">⟳</button>
+			<button class="mbtn" onclick="rotate(false)">⟲</button>
+	
+			<button class="mbtn" onclick="moveDown()">▼</button>
+	
+			<button class="mbtn" onclick="hardDrop()">⤓</button>
+			
+			<button class="mbtn" onclick="hold()">HOLD</button>
+		</div>
+	
+	</div>
+
+    <div class="panel">
+
+		<div style="display:flex; gap:10px; align-items:stretch;">
+		
+			<div class="card" style="flex:1;">
+				<div class="label">NEXT</div>
+				<canvas id="next" width="80" height="80" class="small"></canvas>
+			</div>
+		
+		<div class="card" style="width:190px;">
+			<div class="label">MOBILE</div>
+		
+			<div style="
+				font-size:.7rem;
+				line-height:1;
+				width:170px;
+				margin:0 auto;
+				text-align:center;
+			">
+				TAP = ROTATE<br>
+				SWIPE LEFT/RIGHT = MOVE<br>
+				SWIPE DOWN = SOFT DROP<br>
+				LONG SWIPE DOWN = HARD DROP
+			</div>
+		</div>
+		
+		</div>
+
+		<div class="card">
+			<div class="label">OPPONENTS</div>
+		
+			<div id="opponentsContainer"></div>
+		</div>
+
+		<div class="card" style="width:150px;">
+			<div class="label">CONTROLS</div>
+		
+			<div
+				style="
+					font-size:.5rem;
+					line-height:1;
+					width:130px;
+				"
+			>
+				← → MOVE<br>
+				↓ SOFT DROP<br>
+				↑ ROTATE<br>
+				Z ROTATE REVERSE<br>
+				P PAUSE(Solo)<br>
+				R RESTART(Solo)<br>
+				ESC SURRENDER(PvP)<br>
+				SPACE HARD DROP<br>
+				C/SHIFT HOLD
+			</div>
+		</div>
+    </div>
+	
+	<div id="matchEndPanel" style="
+		display:none;
+		position:fixed;
+		top:50%;
+		left:50%;
+		transform:translate(-50%,-50%);
+		background:#0d1025;
+		border:2px solid #1a224d;
+		padding:20px;
+		border-radius:12px;
+		z-index:9999;
+		text-align:center;
+		width:250px;
+	">
+		<h2 id="matchEndTitle" style="color:#00f0ff;">MATCH ENDED</h2>
+	
+		<div id="rematchStatus" style="margin-top:10px; color:#8090c9;"></div>
+	
+		<button onclick="requestRematch()" style="margin-top:10px;">
+			REMATCH
+		</button>
+	
+		<button onclick="exitMatch()" style="margin-top:10px;">
+			EXIT
+		</button>
+	</div>
+	
+	<div id="rematchPopup" style="
+		display:none;
+		position:fixed;
+		top:0;
+		left:0;
+		width:100%;
+		height:100%;
+		background:rgba(0,0,0,.75);
+		z-index:10000;
+		justify-content:center;
+		align-items:center;
+	">
+		<div style="
+			background:#0d1025;
+			border:2px solid #1a224d;
+			padding:20px;
+			border-radius:12px;
+			text-align:center;
+			width:260px;
+		">
+			<h2 style="color:#00f0ff;">WAITING</h2>
+			<div style="color:#8090c9; margin-top:10px;">
+				Waiting for other player to rematch...
+			</div>
+	
+			<div style="margin-top:15px;">
+				<button onclick="cancelRematchWait()">
+					CANCEL
+				</button>
+			</div>
+		</div>
+	</div>
+
+</div>
+
+<script>
+const SERVER_URL = "https://tetrisonline.onrender.com";
+
+const socket = io(SERVER_URL);
+
+const COLS = 10;
+const ROWS = 20;
+const SIZE = 30;
+
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+
+const opponentsContainer =
+    document.getElementById(
+        "opponentsContainer"
+    );
+
+const nextCtx =
+    document.getElementById("next")
+        .getContext("2d");
+
+const holdCtx =
+    document.getElementById("hold")
+        .getContext("2d");
+
+let multiplayer = false;
+let room = null;
+let opponents = {};
+
+let matchmaking = false;
+let matchmakingTimeout = null;
+
+let maxPlayers = 2;
+let readyPlayers = 0;
+let isReady = false;
+
+let paused = false;
+let running = false;
+let animationId = null;
+
+let gameStarted = false;
+
+let matchEnded = false;
+
+let rematchSent = false;
+
+let waitingRematch = false;
+
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+
+const COLORS = {
+    I:"#00f0ff",
+    J:"#0033ff",
+    L:"#ffaa00",
+    O:"#ffff00",
+    S:"#00ff00",
+    T:"#cc00ff",
+    Z:"#ff0000",
+    X:"#666"
+};
+
+const SHAPES = {
+    I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+    J:[[1,0,0],[1,1,1],[0,0,0]],
+    L:[[0,0,1],[1,1,1],[0,0,0]],
+    O:[[1,1],[1,1]],
+    S:[[0,1,1],[1,1,0],[0,0,0]],
+    T:[[0,1,0],[1,1,1],[0,0,0]],
+    Z:[[1,1,0],[0,1,1],[0,0,0]]
+};
+
+let board = [];
+let piece = null;
+let nextPiece = null;
+let holdPiece = null;
+let canHold = true;
+
+let highScore =
+    parseInt(
+        localStorage.getItem(
+            "tetris_highscore"
+        )
+    ) || 0;
+
+let score = 0;
+let lines = 0;
+let level = 1;
+
+let dropInterval = 1000;
+let dropCounter = 0;
+let lastTime = 0;
+let networkTimer = 0;
+let boardDirty = false;
+
+let lockDelay = 500;
+let lockTimer = 0;
+let touchingGround = false;
+
+let lastMoveRotate = false;
+let message = "";
+let messageTimer = 0;
+
+let combo = -1;
+let backToBack = false;
+
+function resetBoard(){
+
+    board = Array.from(
+        {length:ROWS},
+        ()=>Array(COLS).fill(0)
+    );
+}
+
+let bag = [];
+
+function shuffle(array){
+
+    for(let i=array.length-1;i>0;i--){
+
+        const j = Math.floor(Math.random()*(i+1));
+
+        [array[i],array[j]] =
+            [array[j],array[i]];
+    }
+
+    return array;
+}
+
+function refillBag(){
+
+    bag = shuffle(
+        Object.keys(SHAPES)
+    );
+}
+
+function randomType(){
+
+    if(bag.length === 0){
+
+        refillBag();
+    }
+
+    return bag.pop();
+}
+
+function createPiece(type){
+
+    return{
+        type,
+        matrix:
+            JSON.parse(
+                JSON.stringify(SHAPES[type])
+            ),
+        x:3,
+        y:0
+    };
+}
+
+function spawn(){
+
+    piece = createPiece(nextPiece);
+
+    nextPiece = randomType();
+	
+	lockTimer = 0;
+	touchingGround = false;
+	lastMoveRotate = false;
+
+    if(collide()){
+
+        gameOver();
+    }
+}
+
+function collide(
+    offsetX=0,
+    offsetY=0,
+    matrix=piece.matrix
+){
+
+    for(let y=0;y<matrix.length;y++){
+
+        for(let x=0;x<matrix[y].length;x++){
+
+            if(!matrix[y][x]) continue;
+
+            const nx = piece.x+x+offsetX;
+            const ny = piece.y+y+offsetY;
+
+            if(nx<0 || nx>=COLS || ny>=ROWS)
+                return true;
+
+            if(ny>=0 && board[ny][nx])
+                return true;
+        }
+    }
+
+    return false;
+}
+
+function merge(){
+
+    piece.matrix.forEach((row,y)=>{
+
+        row.forEach((v,x)=>{
+
+            if(v){
+
+                board[piece.y+y][piece.x+x]
+                    = piece.type;
+            }
+        });
+    });
+	
+	boardDirty = true;
+}
+
+function isTSpin(){
+
+    if(piece.type !== "T")
+        return false;
+
+    if(!lastMoveRotate)
+        return false;
+
+    let corners = 0;
+
+    const px = piece.x + 1;
+    const py = piece.y + 1;
+
+    const checks = [
+        [px-1,py-1],
+        [px+1,py-1],
+        [px-1,py+1],
+        [px+1,py+1]
+    ];
+
+    for(const [x,y] of checks){
+
+        if(
+            x < 0 ||
+            x >= COLS ||
+            y >= ROWS ||
+            (y >= 0 && board[y][x])
+        ){
+            corners++;
+        }
+    }
+
+    return corners >= 3;
+}
+
+function clearLines(){
+
+    let cleared = 0;
+
+    outer:
+    for(let y=ROWS-1;y>=0;y--){
+
+        for(let x=0;x<COLS;x++){
+
+            if(board[y][x]===0)
+                continue outer;
+        }
+
+        board.splice(y,1);
+
+        board.unshift(
+            Array(COLS).fill(0)
+        );
+
+        cleared++;
+
+        y++;
+    }
+	
+	const tspin = isTSpin();
+	
+	let difficultClear =
+		tspin || cleared === 4;
+
+    if(cleared){
+	
+		combo++;
+
+		if(tspin){
+		
+			if(cleared === 1){
+		
+				score += 800 * level;
+		
+				message = "T-SPIN SINGLE";
+			}
+		
+			else if(cleared === 2){
+		
+				score += 1200 * level;
+		
+				message = "T-SPIN DOUBLE";
+			}
+		
+			else if(cleared === 3){
+		
+				score += 1600 * level;
+		
+				message = "T-SPIN TRIPLE";
+			}
+		
+			else{
+		
+				score += 400 * level;
+		
+				message = "T-SPIN";
+			}
+		
+		}else{
+		
+			score +=
+				[0,100,300,500,800][cleared]
+				* level;
+		
+			if(cleared === 4){
+		
+				message = "TETRIS";
+			}
+		}
+		
+		messageTimer = 120;
+		
+		if(difficultClear){
+		
+			if(backToBack){
+		
+				score += 200 * level;
+		
+				message += " B2B";
+			}
+		
+			backToBack = true;
+		
+		}else if(cleared > 0){
+		
+			backToBack = false;
+		}
+		
+		if(combo > 0){
+		
+			const comboBonus =
+				combo * 50 * level;
+		
+			score += comboBonus;
+		
+			message =
+				`COMBO x${combo}`;
+		}
+
+        lines += cleared;
+
+        level = Math.floor(lines/10)+1;
+
+        dropInterval =
+            Math.max(
+                100,
+                1000-(level-1)*70
+            );
+
+        updateUI();
+		
+		boardDirty = true;
+
+		if(multiplayer){
+		
+			let garbage = 0;
+		
+			if(tspin){
+		
+				if(cleared === 1) garbage = 2;
+				if(cleared === 2) garbage = 4;
+				if(cleared === 3) garbage = 6;
+		
+			}else{
+		
+				if(cleared === 2) garbage = 1;
+				if(cleared === 3) garbage = 2;
+				if(cleared === 4) garbage = 4;
+			}
+		
+			if(combo > 0){
+		
+				garbage += Math.min(4,combo);
+			}
+		
+			if(backToBack && difficultClear){
+		
+				garbage += 1;
+			}
+		
+			if(garbage > 0){
+		
+				socket.emit("garbage",{
+					room,
+					garbage
+				});
+			}
+		}
+    }
+	
+	else{
+	
+		combo = -1;
+	}
+}
+
+function addGarbage(amount){
+
+    for(let i=0;i<amount;i++){
+
+        board.shift();
+
+        const hole =
+            Math.floor(
+                Math.random()*COLS
+            );
+
+        const row =
+            Array(COLS).fill("X");
+
+        row[hole] = 0;
+
+        board.push(row);
+    }
+	
+	boardDirty = true;
+}
+
+function rotate(clockwise=true){
+
+    const m = piece.matrix;
+
+    let rotated;
+
+    if(clockwise){
+
+        rotated =
+            m[0].map((_,i)=>
+                m.map(r=>r[i]).reverse()
+            );
+
+    }else{
+
+        rotated =
+            m[0].map((_,i)=>
+                m.map(r=>r[r.length-1-i])
+            );
+    }
+
+    const kicks = [0,-1,1,-2,2];
+
+    for(const kick of kicks){
+
+        if(!collide(kick,0,rotated)){
+
+			piece.matrix = rotated;
+			
+			piece.x += kick;
+			
+			if(touchingGround){
+			
+				lockTimer = 0;
+			}
+			
+			lastMoveRotate = true;
+			
+			return;
+        }
+    }
+}
+
+function lockPiece(){
+
+    merge();
+
+    clearLines();
+
+    spawn();
+
+    canHold = true;
+
+    lockTimer = 0;
+
+    touchingGround = false;
+}
+
+function moveDown(){
+
+    if(!collide(0,1)){
+
+        piece.y++;
+
+        touchingGround = false;
+
+        lockTimer = 0;
+
+    }else{
+
+        touchingGround = true;
+    }
+
+    dropCounter = 0;
+}
+
+function hardDrop(){
+
+    if(!piece) return;
+
+    while(!collide(0,1)){
+
+        piece.y++;
+    }
+
+    // score bonus for hard drop distance
+    // optional:
+    // score += 2;
+
+    lastMoveRotate = false;
+
+    // fully reset ground state BEFORE locking
+    touchingGround = false;
+    lockTimer = 0;
+    dropCounter = 0;
+
+    // lock instantly
+    merge();
+
+    clearLines();
+
+    canHold = true;
+
+    spawn();
+
+    // reset again after spawn
+    touchingGround = false;
+    lockTimer = 0;
+    dropCounter = 0;
+}
+
+function hold(){
+
+    if(!canHold) return;
+
+    if(!holdPiece){
+
+        holdPiece = piece.type;
+
+        spawn();
+
+    }else{
+
+        const temp = holdPiece;
+
+        holdPiece = piece.type;
+
+        piece = createPiece(temp);
+    }
+
+    canHold = false;
+}
+
+function drawBlock(
+    ctx,
+    x,
+    y,
+    color,
+    size,
+    alpha=1
+){
+
+    ctx.globalAlpha = alpha;
+
+    ctx.fillStyle = color;
+
+    ctx.fillRect(
+        x*size,
+        y*size,
+        size,
+        size
+    );
+
+    ctx.strokeStyle =
+        "rgba(255,255,255,.15)";
+
+    ctx.strokeRect(
+        x*size,
+        y*size,
+        size,
+        size
+    );
+
+    ctx.globalAlpha = 1;
+}
+
+function drawGhost(){
+
+    let ghostY = piece.y;
+
+    while(
+        !collide(
+            0,
+            ghostY-piece.y+1
+        )
+    ){
+        ghostY++;
+    }
+
+    piece.matrix.forEach((row,y)=>{
+
+        row.forEach((v,x)=>{
+
+            if(v){
+
+                drawBlock(
+                    ctx,
+                    piece.x+x,
+                    ghostY+y,
+                    COLORS[piece.type],
+                    SIZE,
+                    0.18
+                );
+            }
+        });
+    });
+}
+
+function draw(){
+
+    ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+    );
+
+    board.forEach((row,y)=>{
+
+        row.forEach((v,x)=>{
+
+            if(v){
+
+                drawBlock(
+                    ctx,
+                    x,
+                    y,
+                    COLORS[v],
+                    SIZE
+                );
+            }
+        });
+    });
+
+    if(piece){
+
+        drawGhost();
+
+        piece.matrix.forEach((row,y)=>{
+
+            row.forEach((v,x)=>{
+
+                if(v){
+
+                    drawBlock(
+                        ctx,
+                        piece.x+x,
+                        piece.y+y,
+                        COLORS[piece.type],
+                        SIZE
+                    );
+                }
+            });
+        });
+    }
+
+    drawMini(nextCtx,nextPiece);
+
+    drawMini(holdCtx,holdPiece);
+
+    drawEnemies();
+	
+	if(messageTimer > 0){
+	
+		ctx.fillStyle = "#00f0ff";
+	
+		ctx.font = "bold 28px Consolas";
+	
+		ctx.textAlign = "center";
+	
+		ctx.fillText(
+			message,
+			canvas.width/2,
+			120
+		);
+	
+		messageTimer--;
+	}
+
+    if(paused){
+
+        ctx.fillStyle =
+            "rgba(0,0,0,.7)";
+
+        ctx.fillRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+
+        ctx.fillStyle = "#00f0ff";
+
+        ctx.font = "40px Consolas";
+
+        ctx.fillText(
+            "PAUSED",
+            50,
+            300
+        );
+    }
+}
+
+function drawMini(ctx2,type){
+
+    ctx2.clearRect(0,0,80,80);
+
+    if(!type) return;
+
+    const mat = SHAPES[type];
+
+    mat.forEach((row,y)=>{
+
+        row.forEach((v,x)=>{
+
+            if(v){
+
+                drawBlock(
+                    ctx2,
+                    x+1,
+                    y+1,
+                    COLORS[type],
+                    15
+                );
+            }
+        });
+    });
+}
+
+function drawEnemies(){
+
+    Object.values(opponents)
+        .forEach(enemy=>{
+
+        const ctx = enemy.ctx;
+
+        ctx.clearRect(
+            0,
+            0,
+            120,
+            240
+        );
+
+        if(!enemy.grid) return;
+
+        enemy.grid.forEach((row,y)=>{
+
+            row.forEach((v,x)=>{
+
+                if(v){
+
+                    ctx.fillStyle =
+                        COLORS[v] || "#999";
+
+                    ctx.fillRect(
+                        x*12,
+                        y*12,
+                        12,
+                        12
+                    );
+                }
+            });
+        });
+    });
+}
+
+function update(time=0){
+
+    if(!running) return;
+
+    const delta = time-lastTime;
+
+    lastTime = time;
+
+	if(!paused && !matchEnded){
+	
+		dropCounter += delta;
+	
+		if(dropCounter > dropInterval){
+			moveDown();
+		}
+	
+		if(touchingGround){
+			lockTimer += delta;
+	
+			if(lockTimer >= lockDelay){
+				lockPiece();
+			}
+		}
+	
+		networkTimer += delta;
+	
+		if(networkTimer > 100){
+			networkTimer = 0;
+	
+			if(multiplayer && room && boardDirty){
+				boardDirty = false;
+	
+				socket.emit("board", {
+					room,
+					board
+				});
+			}
+		}
+	}
+
+    draw();
+
+    animationId =
+        requestAnimationFrame(update);
+}
+
+function updateUI(){
+
+	if(!multiplayer){
+	
+		if(score > highScore){
+	
+			highScore = score;
+	
+			localStorage.setItem(
+				"tetris_highscore",
+				highScore
+			);
+		}
+	
+		document.getElementById(
+			"bestScore"
+		).innerText = highScore;
+	
+	}else{
+	
+		document.getElementById(
+			"bestScore"
+		).innerText = "-";
+	}
+
+    document.getElementById("score")
+        .innerText = score;
+
+    document.getElementById("lines")
+        .innerText = lines;
+
+    document.getElementById("level")
+        .innerText = level;
+}
+
+function showMenu(){
+
+    running = false;
+
+    paused = false;
+
+    matchmaking = false;
+    room = null;
+    isReady = false;
+    readyPlayers = 0;
+	
+	gameStarted = false;
+
+    opponents = {};
+    opponentsContainer.innerHTML = "";
+
+    document.getElementById("readyBtn").style.display = "none";
+
+    document.getElementById("roomDisplay").innerText = "";
+
+    document.getElementById("status").innerText = "READY";
+
+    document.getElementById("playerCount").innerText = "PLAYERS: 1/4";
+
+    showLobbyChat();
+
+    cancelAnimationFrame(animationId);
+
+    document.getElementById("menu")
+        .style.display = "flex";
+
+    document.getElementById("gameArea")
+        .style.display = "none";
+}
+
+function startGame(){
+
+    // hard reset game state
+    matchEnded = false;
+
+    paused = false;
+    running = false;
+
+    cancelAnimationFrame(animationId);
+
+    piece = null;
+
+    touchingGround = false;
+    lockTimer = 0;
+
+    dropCounter = 0;
+    lastTime = 0;
+
+    boardDirty = true;
+
+    // reset opponents
+    opponents = {};
+    opponentsContainer.innerHTML = "";
+
+    gameStarted = true;
+
+    paused = false;
+
+    running = true;
+
+    // fresh board
+    resetBoard();
+
+    // reset score state
+    score = 0;
+    lines = 0;
+    level = 1;
+
+    combo = -1;
+    backToBack = false;
+
+    // reset fall speed
+    dropInterval = 1000;
+
+    // reset hold
+    holdPiece = null;
+    canHold = true;
+
+    // update ui
+    updateUI();
+
+    // switch screens
+    document.getElementById("menu")
+        .style.display = "none";
+
+    document.getElementById("gameArea")
+        .style.display = "flex";
+
+    // chat handling
+    if(multiplayer){
+
+        showMatchChat();
+
+    }else{
+
+        showLobbyChat();
+    }
+
+    // reset randomizer
+    bag = [];
+
+    // create first pieces
+    nextPiece = randomType();
+
+    spawn();
+
+    // start fresh loop
+    animationId =
+        requestAnimationFrame(update);
+}
+
+function restartGame(){
+
+    if(multiplayer) return;
+
+    startGame();
+}
+
+function surrender(){
+
+    if(!multiplayer) return;
+
+    running = false;
+
+    cancelAnimationFrame(animationId);
+
+    socket.emit("surrender",room);
+
+    alert("YOU SURRENDERED");
+
+    showMenu();
+}
+
+function togglePause(){
+
+    if(!running) return;
+
+    paused = !paused;
+}
+
+function gameOver(){
+
+    running = false;
+    cancelAnimationFrame(animationId);
+
+    if(multiplayer){
+
+        socket.emit("lost", room);
+
+        matchEnded = true;
+
+        showMatchChat();
+        showMatchEndPanel();
+
+        return;
+    }
+
+    setTimeout(()=>{
+
+        alert("GAME OVER\n\nScore: " + score);
+
+        showMenu();
+
+    },100);
+}
+
+function leaveCurrentRoom() {
+
+    matchmaking = false;
+    clearTimeout(matchmakingTimeout);
+
+    if (room) {
+        socket.emit("leaveRoom", room);
+    }
+
+    room = null;
+    isReady = false;
+    readyPlayers = 0;
+
+    document.getElementById("status").innerText = "READY";
+    document.getElementById("readyBtn").style.display = "none";
+}
+
+function startSolo(){
+
+    multiplayer = false;
+
+    room = null;
+	
+	showLobbyChat();
+
+    startGame();
+}
+
+function findMatch() {
+
+    if (matchmaking) return; // already searching
+
+    leaveCurrentRoom();
+
+    matchmaking = true;
+    multiplayer = true;
+
+    maxPlayers = parseInt(
+        document.getElementById("matchType").value
+    );
+
+    document.getElementById("status").innerText = "SEARCHING...";
+
+    socket.emit("findMatch", {
+        maxPlayers,
+        autoJoin: true
+    });
+
+    clearTimeout(matchmakingTimeout);
+
+    matchmakingTimeout = setTimeout(() => {
+
+        if (matchmaking) {
+            matchmaking = false;
+            document.getElementById("status").innerText = "MATCHMAKING FAILED";
+            alert("Unable to find match.");
+        }
+
+    }, 15000);
+}
+
+function createRoom(){
+
+	leaveCurrentRoom();
+
+	if(matchmaking) return;
+	
+	matchmaking = true;
+
+    multiplayer = true;
+
+    maxPlayers =
+        parseInt(
+            document.getElementById("matchType").value
+        );
+
+    room =
+        Math.random()
+            .toString(36)
+            .substring(2,7)
+            .toUpperCase();
+
+    socket.emit("createRoom",{
+        room,
+        maxPlayers
+    });
+
+	document.getElementById("roomDisplay")
+		.innerText = `ROOM CODE: ${room}`;
+	
+	document.getElementById("status")
+		.innerText = "WAITING FOR PLAYERS...";
+
+    document.getElementById("readyBtn")
+        .style.display = "block";
+}
+
+function joinRoom(){
+
+	leaveCurrentRoom();
+
+    if(matchmaking) return;
+
+    const code =
+        document.getElementById("roomCode")
+            .value
+            .trim()
+            .toUpperCase();
+
+    if(!code){
+
+        alert("ENTER ROOM CODE");
+        return;
+    }
+
+    matchmaking = true;
+
+    socket.emit("joinRoom",{
+        room:code
+    });
+
+    document.getElementById("status")
+        .innerText = "JOINING...";
+}
+
+function readyUp(){
+
+    if(isReady) return;
+
+    isReady = true;
+
+    document.getElementById("readyBtn")
+        .innerText = "READY ✓";
+
+    socket.emit("playerReady",room);
+}
+
+function backToMenu(){
+
+    if(multiplayer){
+        alert("Use ESC to surrender in multiplayer.");
+        return;
+    }
+
+    running = false;
+    paused = false;
+
+    cancelAnimationFrame(animationId);
+
+    multiplayer = false;
+    room = null;
+
+    matchEnded = false;
+    rematchSent = false;
+    gameStarted = false;
+
+    piece = null;
+
+    resetBoard();
+
+    opponents = {};
+    opponentsContainer.innerHTML = "";
+
+    hideMatchEndPanel();
+
+    showLobbyChat();
+
+    document.getElementById("status").innerText = "READY";
+    document.getElementById("menu").style.display = "flex";
+    document.getElementById("gameArea").style.display = "none";
+    document.getElementById("roomDisplay").innerText = "";
+}
+
+function createOpponentBoard(id){
+
+    if(opponents[id]) return;
+
+    const box =
+        document.createElement("div");
+
+    box.className = "enemyBox";
+
+    const name =
+        document.createElement("div");
+
+    name.className = "enemyName";
+
+    name.innerText =
+        "PLAYER";
+
+    const canvas =
+        document.createElement("canvas");
+
+    canvas.width = 120;
+    canvas.height = 240;
+
+    canvas.className = "enemyCanvas";
+
+    box.appendChild(name);
+    box.appendChild(canvas);
+
+    opponentsContainer.appendChild(box);
+
+    opponents[id] = {
+        canvas,
+        ctx: canvas.getContext("2d"),
+        grid:null,
+        box
+    };
+}
+
+function moveLeft(){
+    if(!running || paused || matchEnded) return;
+    if(!collide(-1,0)){
+        piece.x--;
+        lastMoveRotate = false;
+        if(touchingGround) lockTimer = 0;
+    }
+}
+
+function moveRight(){
+    if(!running || paused || matchEnded) return;
+    if(!collide(1,0)){
+        piece.x++;
+        lastMoveRotate = false;
+        if(touchingGround) lockTimer = 0;
+    }
+}
+
+function handleTouchStart(e){
+    if(!running || paused || matchEnded) return;
+
+    const touch = e.changedTouches[0];
+
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = Date.now();
+}
+
+function handleTouchEnd(e){
+    if(!running || paused || matchEnded) return;
+
+    const touch = e.changedTouches[0];
+
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+
+    const time = Date.now() - touchStartTime;
+
+    // TAP (rotate)
+    if(absX < 20 && absY < 20 && time < 250){
+        rotate(true);
+        return;
+    }
+
+    // SWIPE LEFT
+    if(absX > absY && dx < -30){
+        if(!collide(-1,0)){
+            piece.x--;
+            lastMoveRotate = false;
+            if(touchingGround) lockTimer = 0;
+        }
+        return;
+    }
+
+    // SWIPE RIGHT
+    if(absX > absY && dx > 30){
+        if(!collide(1,0)){
+            piece.x++;
+            lastMoveRotate = false;
+            if(touchingGround) lockTimer = 0;
+        }
+        return;
+    }
+	
+    // LONG SWIPE DOWN (hard drop)
+    if(absY > absX && dy > 120){
+        hardDrop();
+        return;
+    }
+
+    // SWIPE DOWN (soft drop)
+    if(absY > absX && dy > 30){
+        moveDown();
+        return;
+    }
+	
+}
+
+function exitMatch(){
+
+    if(room){
+        socket.emit("forceEnd", { room });
+    }
+
+    matchEnded = true;
+    running = false;
+
+    cancelAnimationFrame(animationId);
+
+    multiplayer = false;
+    room = null;
+
+    hideMatchEndPanel();
+
+    showMenu();
+}
+
+function cancelRematchWait(){
+
+    if(!room) return;
+
+    waitingRematch = false;
+    rematchSent = false;
+
+    document.getElementById("rematchPopup").style.display = "none";
+
+    socket.emit("cancelRematch", { room });
+
+    document.getElementById("status").innerText =
+        "REMATCH CANCELED";
+
+    showMatchEndPanel();
+}
+
+function requestRematch(){
+
+    if(!room || rematchSent) return;
+
+    running = false;
+    cancelAnimationFrame(animationId);
+
+    rematchSent = true;
+    waitingRematch = true;
+
+    hideMatchEndPanel();
+
+    socket.emit("rematchRequest", { room });
+
+    // SHOW POPUP
+    document.getElementById("rematchPopup").style.display = "flex";
+
+    const panel = document.getElementById("matchEndPanel");
+
+    panel.querySelectorAll("button").forEach(btn => {
+        btn.disabled = true;
+    });
+
+    setMatchChatEnabled(true);
+}
+
+function showMatchEndPanel(){
+    setMatchChatEnabled(false);
+    rematchSent = false;
+
+    const panel = document.getElementById("matchEndPanel");
+    panel.style.display = "block";
+
+    document.querySelector("#matchEndPanel button").disabled = false;
+
+    resetInputLock(); // ✅ FIX HERE
+}
+
+function hideMatchEndPanel(){
+
+    const panel =
+        document.getElementById(
+            "matchEndPanel"
+        );
+
+    panel.style.display = "none";
+
+    rematchSent = false;
+
+    // re-enable buttons
+    const buttons =
+        panel.querySelectorAll("button");
+
+    buttons.forEach(btn=>{
+        btn.disabled = false;
+    });
+}
+
+function resetInputLock() {
+    document.body.style.pointerEvents = "auto";
+
+    const input1 = document.getElementById("lobbyChatInput");
+    const input2 = document.getElementById("matchChatInput");
+
+    if (input1) input1.disabled = false;
+    if (input2 && room) input2.disabled = false;
+}
+
+function setMatchChatEnabled(enabled){
+
+    const input = document.getElementById("matchChatInput");
+
+    if(!input) return;
+
+    // ONLY disable when truly not in room
+    if(!room) {
+        input.disabled = true;
+        return;
+    }
+
+    input.disabled = !enabled;
+}
+
+function addLobbyChat(msg){
+
+    const box =
+        document.getElementById(
+            "lobbyChatBox"
+        );
+
+    const div =
+        document.createElement("div");
+
+    div.className = "chatMsg";
+
+    div.textContent = msg;
+
+    box.appendChild(div);
+
+    requestAnimationFrame(()=>{
+        box.scrollTop =
+            box.scrollHeight;
+    });
+}
+
+function addMatchChat(msg){
+
+    const box =
+        document.getElementById(
+            "matchChatBox"
+        );
+
+    const div =
+        document.createElement("div");
+
+    div.className = "chatMsg";
+
+    div.textContent = msg;
+
+    box.appendChild(div);
+
+    requestAnimationFrame(()=>{
+        box.scrollTop =
+            box.scrollHeight;
+    });
+}
+
+function sendLobbyChat(){
+
+    const input =
+        document.getElementById(
+            "lobbyChatInput"
+        );
+
+    const msg =
+        input.value.trim();
+
+    if(!msg) return;
+
+    socket.emit(
+        "lobbyChatMessage",
+        msg
+    );
+
+    input.value = "";
+}
+
+function sendMatchChat(){
+
+    if(!room) return; // ONLY this should block
+
+    const input =
+        document.getElementById("matchChatInput");
+
+    input.focus(); // 🔥 ensures clickable even after match ends
+
+    const msg = input.value.trim();
+    if(!msg) return;
+
+    socket.emit("matchChatMessage", {
+        room,
+        msg
+    });
+
+    addMatchChat("Me: " + msg);
+
+    input.value = "";
+}
+
+function showLobbyChat(){
+
+    document.getElementById(
+        "lobbyChatPanel"
+    ).style.display = "block";
+
+    document.getElementById(
+        "matchChatPanel"
+    ).style.display = "none";
+}
+
+function showMatchChat(){
+
+    document.getElementById(
+        "lobbyChatPanel"
+    ).style.display = "none";
+
+    document.getElementById(
+        "matchChatPanel"
+    ).style.display = "block";
+}
+
+socket.on(
+    "lobbyChatMessage",
+    msg => {
+
+        addLobbyChat(msg);
+    }
+);
+
+socket.on(
+    "matchChatMessage",
+    msg => {
+
+        addMatchChat(msg);
+    }
+);
+
+socket.on("rematchStart", () => {
+
+	document.getElementById("rematchPopup").style.display = "none";
+
+	waitingRematch = false;
+
+    // stop old game loop
+    running = false;
+    cancelAnimationFrame(animationId);
+
+    // reset states
+    matchEnded = false;
+    paused = false;
+    rematchSent = false;
+    gameStarted = false;
+
+    // reset gameplay
+    score = 0;
+    lines = 0;
+    level = 1;
+
+    combo = -1;
+    backToBack = false;
+
+    dropInterval = 1000;
+    dropCounter = 0;
+    lastTime = 0;
+
+    lockTimer = 0;
+    touchingGround = false;
+
+    holdPiece = null;
+    canHold = true;
+
+    piece = null;
+    nextPiece = null;
+
+    boardDirty = true;
+
+    // clear board
+    resetBoard();
+
+    // clear opponent previews
+    opponents = {};
+    opponentsContainer.innerHTML = "";
+
+    // reset random bag
+    bag = [];
+
+    // hide end panel
+    hideMatchEndPanel();
+
+    // re-enable match chat
+    setMatchChatEnabled(true);
+
+    // status text
+    document.getElementById("status").innerText =
+        "REMATCH STARTED";
+
+    // restart cleanly
+    startGame();
+});
+
+socket.on("opponentLeft", () => {
+
+    matchEnded = true;
+    running = false;
+
+    cancelAnimationFrame(animationId);
+
+    showMatchChat();
+    showMatchEndPanel();
+
+    document.getElementById("status").innerText =
+        "OPPONENT LEFT";
+});
+
+socket.on("matchFound", data => {
+
+    clearTimeout(matchmakingTimeout);
+    matchmaking = false;
+    multiplayer = true;
+
+    room = data.room || data;
+
+    document.getElementById("roomDisplay")
+        .innerText = `ROOM CODE: ${room}`;
+
+    document.getElementById("status")
+        .innerText = "JOINED MATCH";
+
+    document.getElementById("readyBtn").style.display = "block";
+
+    // ❌ REMOVE THIS LINE (causes duplicate join bugs)
+    // socket.emit("joinRoom", { room });
+
+});
+
+socket.on("roomCreated", r => {
+    clearTimeout(matchmakingTimeout);
+    matchmaking = false;
+
+    multiplayer = true;
+    room = r;
+
+    document.getElementById("status").innerText = "WAITING FOR PLAYERS...";
+    document.getElementById("roomDisplay").innerText = `ROOM CODE: ${room}`;
+    document.getElementById("readyBtn").style.display = "block";
+});
+
+socket.on("roomJoined", r => {
+
+	clearTimeout(matchmakingTimeout);
+
+    matchmaking = false;
+
+    multiplayer = true;
+
+    room = r;
+
+    document.getElementById("roomDisplay")
+        .innerText = `ROOM CODE: ${room}`;
+
+    document.getElementById("status")
+        .innerText = "PLAYER JOINED";
+
+    document.getElementById("readyBtn")
+        .style.display = "block";
+});
+
+socket.on("startMatch", () => {
+
+    clearTimeout(matchmakingTimeout);
+
+    matchmaking = false;
+
+    gameStarted = false;
+
+    document.getElementById("status")
+        .innerText = "MATCH START";
+
+    document.getElementById("readyBtn")
+        .style.display = "none";
+
+    isReady = false;
+
+    startGame();
+});
+
+socket.on("readyUpdate", data => {
+
+    readyPlayers = data.ready;
+    maxPlayers = data.maxPlayers;
+
+	if (!waitingRematch) {
+		document.getElementById("status").innerText =
+			`READY ${readyPlayers}/${maxPlayers}`;
+	}
+
+    document.getElementById("playerCount")
+        .innerText =
+        `PLAYERS: ${data.players}/${maxPlayers}`;
+});
+
+socket.on("roomNotFound",()=>{
+
+	matchmaking = false;
+
+    alert("ROOM DOES NOT EXIST");
+});
+
+socket.on("roomFull",()=>{
+
+	matchmaking = false;
+
+    alert("ROOM FULL");
+});
+
+socket.on("enemyBoard",data=>{
+
+    const {id,grid} = data;
+
+    if(!opponents[id]){
+
+        createOpponentBoard(id);
+    }
+
+    opponents[id].grid = grid;
+});
+
+socket.on("receiveGarbage",amount=>{
+
+    addGarbage(amount);
+});
+
+socket.on("win", () => {
+
+    matchEnded = true;
+    running = false;
+
+    cancelAnimationFrame(animationId);
+
+    showMatchChat();
+    showMatchEndPanel();
+
+    document.getElementById("status").innerText =
+        "YOU WIN";
+});
+
+socket.on("matchEnded", () => {
+
+    running = false;
+    cancelAnimationFrame(animationId);
+
+    matchEnded = true;
+
+    showMatchChat();
+    showMatchEndPanel();
+});
+
+socket.on("rematchPlayerJoined", data => {
+
+	waitingRematch = true;
+	
+	document.getElementById("status").innerText =
+		`WAITING REMATCH ${data.ready}/${data.total}`;
+});
+
+socket.on("matchForceClosed", () => {
+
+    matchEnded = true;
+    running = false;
+    paused = false;
+
+    cancelAnimationFrame(animationId);
+
+    multiplayer = false;
+    room = null;
+
+    rematchSent = false;
+    gameStarted = false;
+
+    opponents = {};
+    opponentsContainer.innerHTML = "";
+
+    hideMatchEndPanel();
+
+    resetBoard();
+
+    showLobbyChat();
+
+    document.getElementById("status").innerText = "MATCH CLOSED";
+
+    showMenu();
+});
+
+socket.on("playerDisconnected",id=>{
+
+    if(opponents[id]){
+
+        opponents[id].box.remove();
+
+        delete opponents[id];
+    }
+});
+
+socket.on("playerEliminated",id=>{
+
+    if(opponents[id]){
+
+        opponents[id].box.style.opacity = ".3";
+    }
+});
+
+socket.on("playerCount",count=>{
+
+    document.getElementById(
+        "playerCount"
+    ).innerText =
+        `PLAYERS: ${count}/4`;
+});
+
+document.addEventListener("keydown",e=>{
+
+	if (matchEnded) return;
+
+    const tag = document.activeElement.tagName;
+    if(tag === "INPUT") return;
+
+    if(!running || matchEnded) return;
+
+    const preventKeys = [
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        " ",
+        "Spacebar"
+    ];
+
+    if(preventKeys.includes(e.key)){
+
+        e.preventDefault();
+    }
+
+    if(!running) return;
+
+    if(e.key==="p" || e.key==="P"){
+
+        if(!multiplayer){
+
+            togglePause();
+        }
+
+        return;
+    }
+
+    if(e.key==="r" || e.key==="R"){
+
+        if(!multiplayer){
+
+            restartGame();
+        }
+
+        return;
+    }
+
+    if(e.key==="Escape"){
+
+        if(multiplayer){
+
+            surrender();
+        }
+
+        return;
+    }
+
+    if(paused) return;
+
+    switch(e.key){
+
+        case "ArrowLeft":
+
+			if(!collide(-1,0)){
+			
+				piece.x--;
+				
+				lastMoveRotate = false;
+			
+				if(touchingGround){
+			
+					lockTimer = 0;
+				}
+			}
+
+            break;
+
+        case "ArrowRight":
+
+			if(!collide(1,0)){
+			
+				piece.x++;
+				
+				lastMoveRotate = false;
+			
+				if(touchingGround){
+			
+					lockTimer = 0;
+				}
+			}
+
+            break;
+
+        case "ArrowDown":
+
+            moveDown();
+
+            break;
+
+        case "ArrowUp":
+
+            rotate(true);
+
+            break;
+
+        case "z":
+        case "Z":
+
+            rotate(false);
+
+            break;
+
+        case " ":
+        case "Spacebar":
+
+            hardDrop();
+
+            break;
+
+        case "c":
+        case "C":
+        case "Shift":
+
+            hold();
+
+            break;
+    }
+});
+
+canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+canvas.addEventListener("touchend", handleTouchEnd, { passive: false });	
+
+showMenu();
+
+window.addEventListener("resize", scaleGame);
+window.addEventListener("load", scaleGame);
+scaleGame();
+
+window.addEventListener("beforeunload",()=>{
+    if(multiplayer && room){
+        socket.emit("leaveRoom",room);
+    }
+});
+
+window.addEventListener("focus", () => {
+    if (!running && !multiplayer) {
+        resetInputLock();
+    }
+});
+
+function scaleGame() {
+    const wrapper = document.getElementById("gameWrapper");
+    if (!wrapper) return;
+
+    const baseWidth = 900;
+    const baseHeight = 700;
+
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+
+    let scaleX = screenWidth / baseWidth;
+    let scaleY = screenHeight / baseHeight;
+
+    let scale = Math.min(scaleX, scaleY);
+
+    // allow stronger zoom-out on mobile
+    scale = Math.min(scale, 1);
+    scale = Math.max(scale, 0.25);
+
+    wrapper.style.transform = `scale(${scale})`;
+}
+</script>
+
+</div>
+
+</body>
+</html>
