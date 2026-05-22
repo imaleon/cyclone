@@ -26,6 +26,7 @@ const rooms = {};
 rooms[ROOM] = {
     players: [],
     ready: 0,
+    readyPlayers: {},
     maxPlayers: 2,
     started: false
 }
@@ -37,13 +38,17 @@ HELPERS
 ========================================
 */
 
-function createRoomIfMissing(room, maxPlayers = 2){
+function createRoomIfMissing(
+    room,
+    maxPlayers = 2
+){
 
     if(!rooms[room]){
 
         rooms[room] = {
             players: [],
             ready: 0,
+            readyPlayers: {},
             maxPlayers,
             started: false
         };
@@ -54,11 +59,19 @@ function updateRoomPlayerCount(room){
 
     if(!rooms[room]) return;
 
-    io.to(room).emit("readyUpdate", {
-        ready: rooms[room].ready,
-        maxPlayers: rooms[room].maxPlayers,
-        players: rooms[room].players.length
-    });
+    io.to(room).emit(
+        "readyUpdate",
+        {
+            ready:
+                rooms[room].ready,
+
+            maxPlayers:
+                rooms[room].maxPlayers,
+
+            players:
+                rooms[room].players.length
+        }
+    );
 
     io.to(room).emit(
         "playerCount",
@@ -66,7 +79,10 @@ function updateRoomPlayerCount(room){
     );
 }
 
-function removePlayerFromRoom(socket, room){
+function removePlayerFromRoom(
+    socket,
+    room
+){
 
     if(!rooms[room]) return;
 
@@ -74,6 +90,14 @@ function removePlayerFromRoom(socket, room){
         rooms[room].players.filter(
             id => id !== socket.id
         );
+
+    delete rooms[room]
+        .readyPlayers?.[socket.id];
+
+    rooms[room].ready =
+        Object.keys(
+            rooms[room].readyPlayers
+        ).length;
 
     socket.leave(room);
 
@@ -83,9 +107,8 @@ function removePlayerFromRoom(socket, room){
     );
 
     /*
-    if match already started
-    and only 1 player remains
-    => remaining player wins
+    if match started and
+    only one remains => win
     */
 
     if(
@@ -106,24 +129,47 @@ function removePlayerFromRoom(socket, room){
     delete empty room
     */
 
-    if(rooms[room].players.length <= 0){
+    if(
+        rooms[room].players.length <= 0
+    ){
 
         delete rooms[room];
 
         return;
     }
 
-    /*
-    recalc ready count
-    */
-
-    rooms[room].ready =
-        Math.min(
-            rooms[room].ready,
-            rooms[room].players.length
-        );
-
     updateRoomPlayerCount(room);
+}
+
+function removePlayerEverywhere(
+    socket
+){
+
+    const roomList =
+        Object.keys(rooms);
+
+    for(const room of roomList){
+
+        if(
+            rooms[room]
+                ?.players
+                ?.includes(socket.id)
+        ){
+
+            removePlayerFromRoom(
+                socket,
+                room
+            );
+        }
+    }
+}
+
+function generateRoomCode(){
+
+    return Math.random()
+        .toString(36)
+        .substring(2,7)
+        .toUpperCase();
 }
 
 /*
@@ -139,10 +185,12 @@ io.on("connection", socket => {
         socket.id
     );
 
+    socket.lastBoardUpdate = 0;
+
     /*
-    ================================
+    ====================================
     GLOBAL LOBBY CHAT
-    ================================
+    ====================================
     */
 
     socket.on(
@@ -158,6 +206,12 @@ io.on("connection", socket => {
 
             if(!msg) return;
 
+            if(msg.length > 120){
+
+                msg =
+                    msg.substring(0,120);
+            }
+
             io.emit(
                 "lobbyChatMessage",
                 `Player: ${msg}`
@@ -166,9 +220,9 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
-    MATCH / ROOM CHAT
-    ================================
+    ====================================
+    MATCH CHAT
+    ====================================
     */
 
     socket.on(
@@ -177,8 +231,11 @@ io.on("connection", socket => {
 
             if(!data) return;
 
-            const room = data.room;
-            let msg = data.msg;
+            const room =
+                data.room;
+
+            let msg =
+                data.msg;
 
             if(
                 !room ||
@@ -186,9 +243,17 @@ io.on("connection", socket => {
                 typeof msg !== "string"
             ) return;
 
+            if(!rooms[room]) return;
+
             msg = msg.trim();
 
             if(!msg) return;
+
+            if(msg.length > 120){
+
+                msg =
+                    msg.substring(0,120);
+            }
 
             socket.to(room).emit(
                 "matchChatMessage",
@@ -198,14 +263,18 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
-    FIND RANDOM MATCH
-    ================================
+    ====================================
+    RANDOM MATCHMAKING
+    ====================================
     */
 
     socket.on(
         "findMatch",
         data => {
+
+            removePlayerEverywhere(
+                socket
+            );
 
             const maxPlayers =
                 data?.maxPlayers || 2;
@@ -218,8 +287,11 @@ io.on("connection", socket => {
 
                 if(
                     !r.started &&
-                    r.maxPlayers === maxPlayers &&
-                    r.players.length < r.maxPlayers
+                    r.ready === 0 &&
+                    r.maxPlayers ===
+                        maxPlayers &&
+                    r.players.length <
+                        r.maxPlayers
                 ){
 
                     foundRoom = room;
@@ -235,10 +307,7 @@ io.on("connection", socket => {
             if(!foundRoom){
 
                 foundRoom =
-                    Math.random()
-                        .toString(36)
-                        .substring(2,7)
-                        .toUpperCase();
+                    generateRoomCode();
 
                 createRoomIfMissing(
                     foundRoom,
@@ -252,19 +321,22 @@ io.on("connection", socket => {
 
             socket.join(foundRoom);
 
-            rooms[foundRoom]
-                .players
-                .push(socket.id);
+            if(
+                !rooms[foundRoom]
+                    .players
+                    .includes(socket.id)
+            ){
+
+                rooms[foundRoom]
+                    .players
+                    .push(socket.id);
+            }
 
             socket.room = foundRoom;
 
             updateRoomPlayerCount(
                 foundRoom
             );
-
-            /*
-            notify joined
-            */
 
             io.to(foundRoom).emit(
                 "matchFound",
@@ -274,16 +346,22 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
+    ====================================
     CREATE ROOM
-    ================================
+    ====================================
     */
 
     socket.on(
         "createRoom",
         data => {
 
-            const room = data.room;
+            removePlayerEverywhere(
+                socket
+            );
+
+            const room =
+                data.room;
+
             const maxPlayers =
                 data.maxPlayers || 2;
 
@@ -305,9 +383,16 @@ io.on("connection", socket => {
 
             socket.join(room);
 
-            rooms[room]
-                .players
-                .push(socket.id);
+            if(
+                !rooms[room]
+                    .players
+                    .includes(socket.id)
+            ){
+
+                rooms[room]
+                    .players
+                    .push(socket.id);
+            }
 
             socket.room = room;
 
@@ -323,16 +408,21 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
+    ====================================
     JOIN ROOM
-    ================================
+    ====================================
     */
 
     socket.on(
         "joinRoom",
         data => {
 
-            const room = data.room;
+            removePlayerEverywhere(
+                socket
+            );
+
+            const room =
+                data.room;
 
             if(!rooms[room]){
 
@@ -344,7 +434,9 @@ io.on("connection", socket => {
             }
 
             if(
-                rooms[room].players.length >=
+                rooms[room].started ||
+                rooms[room].players
+                    .length >=
                 rooms[room].maxPlayers
             ){
 
@@ -357,9 +449,16 @@ io.on("connection", socket => {
 
             socket.join(room);
 
-            rooms[room]
-                .players
-                .push(socket.id);
+            if(
+                !rooms[room]
+                    .players
+                    .includes(socket.id)
+            ){
+
+                rooms[room]
+                    .players
+                    .push(socket.id);
+            }
 
             socket.room = room;
 
@@ -375,9 +474,9 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
+    ====================================
     READY SYSTEM
-    ================================
+    ====================================
     */
 
     socket.on(
@@ -386,7 +485,30 @@ io.on("connection", socket => {
 
             if(!rooms[room]) return;
 
-            rooms[room].ready++;
+            if(
+                rooms[room]
+                    .started
+            ){
+                return;
+            }
+
+            if(
+                rooms[room]
+                    .readyPlayers
+                    [socket.id]
+            ){
+                return;
+            }
+
+            rooms[room]
+                .readyPlayers
+                [socket.id] = true;
+
+            rooms[room].ready =
+                Object.keys(
+                    rooms[room]
+                        .readyPlayers
+                ).length;
 
             updateRoomPlayerCount(
                 room
@@ -398,11 +520,14 @@ io.on("connection", socket => {
 
             if(
                 rooms[room].ready >=
-                rooms[room].players.length &&
-                rooms[room].players.length >= 2
+                rooms[room].players
+                    .length &&
+                rooms[room].players
+                    .length >= 2
             ){
 
-                rooms[room].started = true;
+                rooms[room]
+                    .started = true;
 
                 io.to(room).emit(
                     "startMatch"
@@ -412,9 +537,9 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
+    ====================================
     LIVE BOARD UPDATE
-    ================================
+    ====================================
     */
 
     socket.on(
@@ -422,6 +547,28 @@ io.on("connection", socket => {
         data => {
 
             if(!data) return;
+
+            if(
+                !rooms[data.room]
+            ) return;
+
+            const now =
+                Date.now();
+
+            /*
+            anti flood
+            */
+
+            if(
+                now -
+                socket.lastBoardUpdate
+                < 50
+            ){
+                return;
+            }
+
+            socket.lastBoardUpdate =
+                now;
 
             socket.to(data.room).emit(
                 "enemyBoard",
@@ -434,9 +581,9 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
-    GARBAGE ATTACK
-    ================================
+    ====================================
+    GARBAGE
+    ====================================
     */
 
     socket.on(
@@ -444,6 +591,10 @@ io.on("connection", socket => {
         data => {
 
             if(!data) return;
+
+            if(
+                !rooms[data.room]
+            ) return;
 
             socket.to(data.room).emit(
                 "receiveGarbage",
@@ -453,9 +604,9 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
+    ====================================
     PLAYER LOST
-    ================================
+    ====================================
     */
 
     socket.on(
@@ -469,22 +620,42 @@ io.on("connection", socket => {
                 socket.id
             );
 
+            delete rooms[room]
+                .readyPlayers
+                [socket.id];
+
             rooms[room].players =
                 rooms[room].players.filter(
                     id => id !== socket.id
                 );
 
             /*
-            if one remains => winner
+            only one remains
             */
 
             if(
-                rooms[room].players.length === 1
+                rooms[room].players
+                    .length === 1
             ){
 
                 io.to(
-                    rooms[room].players[0]
+                    rooms[room]
+                        .players[0]
                 ).emit("win");
+
+                delete rooms[room];
+
+                return;
+            }
+
+            /*
+            no players left
+            */
+
+            if(
+                rooms[room].players
+                    .length <= 0
+            ){
 
                 delete rooms[room];
             }
@@ -492,9 +663,9 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
+    ====================================
     SURRENDER
-    ================================
+    ====================================
     */
 
     socket.on(
@@ -507,7 +678,7 @@ io.on("connection", socket => {
                 "win"
             );
 
-            io.to(room).emit(
+            socket.emit(
                 "matchEnded"
             );
 
@@ -516,9 +687,26 @@ io.on("connection", socket => {
     );
 
     /*
-    ================================
+    ====================================
+    LEAVE ROOM
+    ====================================
+    */
+
+    socket.on(
+        "leaveRoom",
+        room => {
+
+            removePlayerFromRoom(
+                socket,
+                room
+            );
+        }
+    );
+
+    /*
+    ====================================
     DISCONNECT
-    ================================
+    ====================================
     */
 
     socket.on(
@@ -530,20 +718,9 @@ io.on("connection", socket => {
                 socket.id
             );
 
-            for(const room in rooms){
-
-                if(
-                    rooms[room].players.includes(
-                        socket.id
-                    )
-                ){
-
-                    removePlayerFromRoom(
-                        socket,
-                        room
-                    );
-                }
-            }
+            removePlayerEverywhere(
+                socket
+            );
         }
     );
 });
