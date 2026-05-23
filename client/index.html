@@ -2257,13 +2257,23 @@ function showMatchChat(){
     ).style.display = "block";
 }
 
-socket.on(
-    "lobbyChatMessage",
-    msg => {
+socket.on("lobbyChatMessage", data => {
 
-        addLobbyChat(msg);
+    // if server sends string (fallback)
+    if (typeof data === "string") {
+        addLobbyChat(data);
+        return;
     }
-);
+
+    // POV formatting
+    const { msg, sender } = data;
+
+    if (sender === "Me") {
+        addLobbyChat("Me: " + msg);
+    } else {
+        addLobbyChat(sender + ": " + msg);
+    }
+});
 
 socket.on(
     "matchChatMessage",
