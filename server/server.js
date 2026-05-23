@@ -6,28 +6,29 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    cors: { origin: "*" }
+    cors: {
+        origin: "*"
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 
 /*
 ========================================
-ONLINE PLAYERS
+GLOBAL ONLINE TRACKING
 ========================================
 */
-let onlinePlayers = 0;
-
-function broadcastOnline() {
-    io.emit("onlineCount", onlinePlayers);
+function emitOnlineCount() {
+    io.emit("onlineCount", io.engine.clientsCount);
 }
 
 /*
 ========================================
-ROOMS
+ROOM DATA
 ========================================
 */
 const rooms = {};
+const lobbyChat = [];
 
 function createRoomData(maxPlayers = 2) {
     return {
@@ -43,6 +44,7 @@ function cleanupRoom(room) {
     if (!rooms[room]) return;
 
     const clients = io.sockets.adapter.rooms.get(room);
+
     if (!clients || clients.size === 0) {
         delete rooms[room];
     }
@@ -53,17 +55,18 @@ function leaveRoom(socket, room) {
 
     socket.leave(room);
 
-    const r = rooms[room];
+    rooms[room].players =
+        rooms[room].players.filter(id => id !== socket.id);
 
-    r.players = r.players.filter(id => id !== socket.id);
-    delete r.ready[socket.id];
-    r.rematchVotes.delete(socket.id);
+    delete rooms[room].ready[socket.id];
+
+    rooms[room].rematchVotes.delete(socket.id);
 
     socket.to(room).emit("opponentLeft");
 
     io.to(room).emit("playerCount", {
-        players: r.players.length,
-        maxPlayers: r.maxPlayers
+        players: rooms[room].players.length,
+        maxPlayers: rooms[room].maxPlayers
     });
 
     cleanupRoom(room);
@@ -71,15 +74,14 @@ function leaveRoom(socket, room) {
 
 /*
 ========================================
-SOCKET CONNECTION
+SOCKET
 ========================================
 */
 io.on("connection", socket => {
 
-    onlinePlayers++;
-    broadcastOnline();
-
     console.log("CONNECTED:", socket.id);
+
+    emitOnlineCount();
 
     /*
     ========================================
@@ -88,33 +90,29 @@ io.on("connection", socket => {
     */
     socket.on("disconnect", () => {
 
-        onlinePlayers--;
-        broadcastOnline();
+        console.log("DISCONNECTED:", socket.id);
+
+        emitOnlineCount();
 
         for (const room in rooms) {
             if (rooms[room].players.includes(socket.id)) {
                 leaveRoom(socket, room);
             }
         }
-
-        console.log("DISCONNECTED:", socket.id);
     });
 
     /*
     ========================================
-    LOBBY CHAT (FIXED POV SYSTEM)
+    LOBBY CHAT
     ========================================
     */
-    socket.on("lobbyChatMessage", data => {
+    socket.on("lobbyChatMessage", msg => {
 
-        const msg = typeof data === "string" ? data : data.msg;
+        const text = `Player: ${msg}`;
 
-        if (!msg) return;
+        lobbyChat.push(text);
 
-        io.emit("lobbyChatMessage", {
-            msg,
-            senderId: socket.id
-        });
+        io.emit("lobbyChatMessage", text);
     });
 
     /*
@@ -138,6 +136,11 @@ io.on("connection", socket => {
         socket.join(room);
 
         socket.emit("roomCreated", room);
+
+        io.to(room).emit("playerCount", {
+            players: rooms[room].players.length,
+            maxPlayers
+        });
 
         console.log("ROOM CREATED:", room);
     });
@@ -183,9 +186,11 @@ io.on("connection", socket => {
         let foundRoom = null;
 
         for (const room in rooms) {
+
             const r = rooms[room];
 
-            if (!r.started &&
+            if (
+                !r.started &&
                 r.maxPlayers === maxPlayers &&
                 r.players.length < r.maxPlayers
             ) {
@@ -195,14 +200,20 @@ io.on("connection", socket => {
         }
 
         if (!foundRoom) {
-            foundRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
+            foundRoom = Math.random()
+                .toString(36)
+                .substring(2, 7)
+                .toUpperCase();
+
             rooms[foundRoom] = createRoomData(maxPlayers);
         }
 
         rooms[foundRoom].players.push(socket.id);
         socket.join(foundRoom);
 
-        socket.emit("matchFound", { room: foundRoom });
+        socket.emit("matchFound", {
+            room: foundRoom
+        });
 
         io.to(foundRoom).emit("playerCount", {
             players: rooms[foundRoom].players.length,
@@ -229,7 +240,10 @@ io.on("connection", socket => {
             maxPlayers: rooms[room].maxPlayers
         });
 
-        if (readyCount >= rooms[room].players.length && rooms[room].players.length >= 2) {
+        if (
+            readyCount >= rooms[room].players.length &&
+            rooms[room].players.length >= 2
+        ) {
             rooms[room].started = true;
             io.to(room).emit("startMatch");
         }
@@ -237,7 +251,7 @@ io.on("connection", socket => {
 
     /*
     ========================================
-    GAME DATA
+    BOARD SYNC
     ========================================
     */
     socket.on("board", data => {
@@ -247,20 +261,31 @@ io.on("connection", socket => {
         });
     });
 
+    /*
+    ========================================
+    GARBAGE
+    ========================================
+    */
     socket.on("garbage", data => {
         socket.to(data.room).emit("receiveGarbage", data.garbage);
     });
 
+    /*
+    ========================================
+    MATCH CHAT (UPDATED WITH POV SUPPORT)
+    ========================================
+    */
     socket.on("matchChatMessage", data => {
-        socket.to(data.room).emit("matchChatMessage", {
+
+        io.to(data.room).emit("matchChatMessage", {
             msg: data.msg,
-            senderId: socket.id
+            id: socket.id
         });
     });
 
     /*
     ========================================
-    GAME END
+    LOST / WIN
     ========================================
     */
     socket.on("lost", room => {
@@ -328,8 +353,8 @@ io.on("connection", socket => {
     socket.on("leaveRoom", room => {
         leaveRoom(socket, room);
     });
-});
 
+});
 /*
 ========================================
 START SERVER
