@@ -2175,13 +2175,9 @@ function addMatchChat(msg, senderId = null){
     const div = document.createElement("div");
     div.className = "chatMsg";
 
-    let name = "PLAYER";
+    const isMe = senderId === socket.id;
 
-    if (!senderId) {
-        name = "ME";
-    } else if (senderId === socket.id) {
-        name = "ME";
-    }
+    const name = isMe ? "ME" : "PLAYER";
 
     div.textContent = `${name}: ${msg}`;
 
@@ -2226,7 +2222,7 @@ function sendMatchChat(){
         msg
     });
 
-    addMatchChat(msg); // ME message locally
+    addMatchChat(msg, socket.id); // mark as ME properly
 
     input.value = "";
 }
@@ -2261,13 +2257,12 @@ socket.on(
     }
 );
 
-socket.on(
-    "matchChatMessage",
-    msg => {
+socket.on("matchChatMessage", data => {
+    const msg = data.msg ?? data;   // fallback if server still sends string
+    const senderId = data.senderId ?? null;
 
-        addMatchChat(msg);
-    }
-);
+    addMatchChat(msg, senderId);
+});
 
 socket.on("onlineCount", count => {
     document.getElementById("onlineCount").innerText =
