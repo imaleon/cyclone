@@ -6,319 +6,270 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    cors: { origin: "*" }
+    cors: {
+        origin: "*"
+    }
 });
 
 const PORT = process.env.PORT || 3000;
 
-/* =========================
+/* -----------------------------
    STATE
-========================= */
-
-const rooms = {}; 
-const players = {}; // socket.id -> {room}
+----------------------------- */
 
 let onlineCount = 0;
 
-/* =========================
+const rooms = {}; 
+// roomId -> { players: [], ready: Set, maxPlayers }
+
+const playerRoom = {}; 
+// socket.id -> roomId
+
+/* -----------------------------
    HELPERS
-========================= */
+----------------------------- */
 
 function getRoom(roomId) {
     return rooms[roomId];
 }
 
-function broadcastRoom(roomId, event, data) {
-    io.to(roomId).emit(event, data);
-}
-
-function updatePlayerCount(roomId) {
+function broadcastRoomUpdate(roomId) {
     const room = rooms[roomId];
     if (!room) return;
 
-    const count = Object.keys(room.players).length;
-
-    broadcastRoom(roomId, "playerCount", count);
     io.to(roomId).emit("readyUpdate", {
-        ready: Object.values(room.players).filter(p => p.ready).length,
-        players: count,
-        maxPlayers: room.maxPlayers
+        ready: room.ready.size,
+        maxPlayers: room.maxPlayers,
+        players: room.players.length
     });
+
+    io.to(roomId).emit("playerCount", room.players.length);
 }
 
-/* =========================
-   CONNECTION
-========================= */
+function removePlayerFromRoom(socket) {
+    const roomId = playerRoom[socket.id];
+    if (!roomId) return;
+
+    const room = rooms[roomId];
+    if (!room) return;
+
+    room.players = room.players.filter(p => p !== socket.id);
+    room.ready.delete(socket.id);
+
+    delete playerRoom[socket.id];
+
+    socket.leave(roomId);
+
+    // notify others
+    io.to(roomId).emit("playerDisconnected", socket.id);
+    broadcastRoomUpdate(roomId);
+
+    // if empty room delete
+    if (room.players.length === 0) {
+        delete rooms[roomId];
+        return;
+    }
+
+    // if host left or not enough players
+    if (room.players.length < 2) {
+        io.to(roomId).emit("matchForceClosed");
+        delete rooms[roomId];
+    }
+}
+
+/* -----------------------------
+   SOCKET
+----------------------------- */
 
 io.on("connection", (socket) => {
     onlineCount++;
     io.emit("onlineCount", onlineCount);
 
-    players[socket.id] = { room: null };
+    /* LOGIN */
+    socket.on("login", ({ username }) => {
+        socket.data.username = username || "PLAYER";
+    });
 
-    /* =========================
-       LOBBY CHAT
-    ========================= */
+    /* LOBBY CHAT */
     socket.on("lobbyChatMessage", (msg) => {
-        io.emit("lobbyChatMessage", `Player: ${msg}`);
+        io.emit("lobbyChatMessage", msg);
     });
 
-    /* =========================
-       MATCH CHAT
-    ========================= */
-    socket.on("matchChatMessage", ({ room, msg }) => {
-        if (!rooms[room]) return;
-
-        // do nothing or only store if needed
+    /* MATCH CHAT */
+    socket.on("matchChatMessage", ({ room, username, msg }) => {
+        // IMPORTANT FIX: only emit to room except sender (prevents double echo bugs)
+        socket.to(room).emit("matchChatMessage", {
+            username,
+            msg
+        });
     });
 
-    /* =========================
-       CREATE ROOM
-    ========================= */
+    /* CREATE ROOM */
     socket.on("createRoom", ({ room, maxPlayers }) => {
+        if (rooms[room]) {
+            socket.emit("roomFull");
+            return;
+        }
+
         rooms[room] = {
-            host: socket.id,
-            maxPlayers,
-            players: {},
-            started: false,
-            rematch: {}
+            players: [],
+            ready: new Set(),
+            maxPlayers
         };
 
-        socket.join(room);
-        players[socket.id].room = room;
-
-        rooms[room].players[socket.id] = {
-            ready: false,
-            alive: true
-        };
+        joinRoomInternal(socket, room);
 
         socket.emit("roomCreated", room);
-        updatePlayerCount(room);
     });
 
-    /* =========================
-       JOIN ROOM
-    ========================= */
+    /* JOIN ROOM */
     socket.on("joinRoom", ({ room }) => {
         const r = rooms[room];
 
-        if (!r) return socket.emit("roomNotFound");
-        if (Object.keys(r.players).length >= r.maxPlayers)
-            return socket.emit("roomFull");
+        if (!r) {
+            socket.emit("roomNotFound");
+            return;
+        }
 
-        socket.join(room);
-        players[socket.id].room = room;
+        if (r.players.length >= r.maxPlayers) {
+            socket.emit("roomFull");
+            return;
+        }
 
-        r.players[socket.id] = {
-            ready: false,
-            alive: true
-        };
+        joinRoomInternal(socket, room);
 
         socket.emit("roomJoined", room);
-        updatePlayerCount(room);
+        io.to(room).emit("playerCount", r.players.length);
     });
 
-    /* =========================
-       FIND MATCH (simple queue)
-    ========================= */
+    function joinRoomInternal(socket, roomId) {
+        socket.join(roomId);
+
+        playerRoom[socket.id] = roomId;
+
+        const room = rooms[roomId];
+        room.players.push(socket.id);
+
+        broadcastRoomUpdate(roomId);
+    }
+
+    /* FIND MATCH (simple queue system) */
     socket.on("findMatch", ({ maxPlayers }) => {
-        let found = null;
+        let foundRoom = null;
 
         for (const id in rooms) {
             const r = rooms[id];
-
-            if (!r.started &&
-                r.maxPlayers === maxPlayers &&
-                Object.keys(r.players).length < maxPlayers) {
-                found = id;
+            if (r.players.length < r.maxPlayers) {
+                foundRoom = id;
                 break;
             }
         }
 
-        if (!found) {
-            const room = Math.random().toString(36).substring(2, 7).toUpperCase();
+        if (!foundRoom) {
+            const newRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
 
-            rooms[room] = {
-                host: socket.id,
-                maxPlayers,
-                players: {},
-                started: false,
-                rematch: {}
+            rooms[newRoom] = {
+                players: [],
+                ready: new Set(),
+                maxPlayers
             };
 
-            found = room;
+            foundRoom = newRoom;
         }
 
-        socket.join(found);
-        players[socket.id].room = found;
+        joinRoomInternal(socket, foundRoom);
 
-        rooms[found].players[socket.id] = {
-            ready: false,
-            alive: true
-        };
-
-        io.to(found).emit("matchFound", { room: found });
-        updatePlayerCount(found);
+        socket.emit("matchFound", foundRoom);
     });
 
-    /* =========================
-       READY SYSTEM
-    ========================= */
+    /* READY */
     socket.on("playerReady", (room) => {
         const r = rooms[room];
         if (!r) return;
 
-        if (r.players[socket.id]) {
-            r.players[socket.id].ready = true;
-        }
+        r.ready.add(socket.id);
 
-        updatePlayerCount(room);
+        broadcastRoomUpdate(room);
 
-        const allReady =
-            Object.values(r.players).length > 1 &&
-            Object.values(r.players).every(p => p.ready);
-
-        if (allReady && !r.started) {
-            r.started = true;
+        if (r.ready.size === r.maxPlayers && r.players.length === r.maxPlayers) {
             io.to(room).emit("startMatch");
         }
     });
 
-    /* =========================
-       BOARD SYNC
-    ========================= */
+    /* GAME SYNC */
     socket.on("board", ({ room, board }) => {
-        if (!rooms[room]) return;
-
         socket.to(room).emit("enemyBoard", {
             id: socket.id,
             grid: board
         });
     });
 
-    /* =========================
-       GARBAGE SYSTEM
-    ========================= */
+    /* GARBAGE */
     socket.on("garbage", ({ room, garbage }) => {
-        if (!rooms[room]) return;
-
         socket.to(room).emit("receiveGarbage", garbage);
     });
 
-    /* =========================
-       LOSS / WIN
-    ========================= */
+    /* LOSE / WIN */
     socket.on("lost", (room) => {
-        if (!rooms[room]) return;
-
-        rooms[room].players[socket.id].alive = false;
-
-        socket.to(room).emit("playerEliminated", socket.id);
-
-        const alive = Object.values(rooms[room].players)
-            .filter(p => p.alive).length;
-
-        if (alive <= 1) {
-            io.to(room).emit("win");
-            io.to(room).emit("matchEnded");
-        }
+        socket.to(room).emit("win");
+        io.to(room).emit("matchEnded");
     });
 
     socket.on("surrender", (room) => {
         socket.to(room).emit("opponentLeft");
     });
 
-    /* =========================
-       FORCE END
-    ========================= */
-    socket.on("forceEnd", ({ room }) => {
-        io.to(room).emit("matchForceClosed");
+    /* REMATCH SYSTEM */
+    const rematchVotes = {};
 
-        if (rooms[room]) {
-            for (const id of Object.keys(rooms[room].players)) {
-                if (io.sockets.sockets.get(id)) {
-                    io.sockets.sockets.get(id).leave(room);
-                }
-            }
-            delete rooms[room];
-        }
-    });
-
-    /* =========================
-       REMATCH SYSTEM
-    ========================= */
     socket.on("rematchRequest", ({ room }) => {
-        if (!rooms[room]) return;
+        if (!rematchVotes[room]) rematchVotes[room] = new Set();
 
-        rooms[room].rematch[socket.id] = true;
-
-        const total = Object.keys(rooms[room].players).length;
-        const ready = Object.keys(rooms[room].rematch).length;
+        rematchVotes[room].add(socket.id);
 
         io.to(room).emit("rematchPlayerJoined", {
-            ready,
-            total
+            ready: rematchVotes[room].size,
+            total: rooms[room]?.players.length || 0
         });
 
-        if (ready === total) {
-            rooms[room].rematch = {};
+        const roomData = rooms[room];
+        if (!roomData) return;
+
+        if (rematchVotes[room].size === roomData.players.length) {
+            rematchVotes[room] = new Set();
             io.to(room).emit("rematchStart");
         }
     });
 
     socket.on("cancelRematch", ({ room }) => {
-        if (!rooms[room]) return;
-
-        delete rooms[room].rematch[socket.id];
-    });
-
-    /* =========================
-       LEAVE ROOM
-    ========================= */
-    socket.on("leaveRoom", (room) => {
-        if (!rooms[room]) return;
-
-        socket.leave(room);
-
-        delete rooms[room].players[socket.id];
-
-        players[socket.id].room = null;
-
-        updatePlayerCount(room);
-
-        if (Object.keys(rooms[room].players).length === 0) {
-            delete rooms[room];
+        if (rematchVotes[room]) {
+            rematchVotes[room].delete(socket.id);
         }
     });
 
-    /* =========================
-       DISCONNECT
-    ========================= */
+    /* FORCE END */
+    socket.on("forceEnd", ({ room }) => {
+        io.to(room).emit("matchForceClosed");
+        delete rooms[room];
+    });
+
+    /* LEAVE ROOM */
+    socket.on("leaveRoom", (room) => {
+        removePlayerFromRoom(socket);
+    });
+
+    /* DISCONNECT */
     socket.on("disconnect", () => {
         onlineCount--;
         io.emit("onlineCount", onlineCount);
 
-        const room = players[socket.id]?.room;
-
-        if (room && rooms[room]) {
-            delete rooms[room].players[socket.id];
-
-            socket.to(room).emit("playerDisconnected", socket.id);
-
-            updatePlayerCount(room);
-
-            if (Object.keys(rooms[room].players).length === 0) {
-                delete rooms[room];
-            }
-        }
-
-        delete players[socket.id];
+        removePlayerFromRoom(socket);
     });
 });
 
-/* =========================
+/* -----------------------------
    START SERVER
-========================= */
+----------------------------- */
 
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
