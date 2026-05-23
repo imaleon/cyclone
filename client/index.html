@@ -433,6 +433,10 @@ canvas {
     font-size:.9rem;
     margin-top:5px;
 }
+
+canvas {
+    image-rendering: pixelated;
+}
 </style>
 </head>
 
@@ -1520,37 +1524,74 @@ function hold(){
     canHold = false;
 }
 
-function drawBlock(
-    ctx,
-    x,
-    y,
-    color,
-    size,
-    alpha=1
-){
+function lighten(hex, percent) {
+    const num = parseInt(hex.replace("#", ""), 16),
+        amt = Math.round(2.55 * percent),
+        R = (num >> 16) + amt,
+        G = ((num >> 8) & 0x00ff) + amt,
+        B = (num & 0x0000ff) + amt;
 
+    return `rgb(${clamp(R)},${clamp(G)},${clamp(B)})`;
+}
+
+function darken(hex, percent) {
+    const num = parseInt(hex.replace("#", ""), 16),
+        amt = Math.round(2.55 * percent),
+        R = (num >> 16) - amt,
+        G = ((num >> 8) & 0x00ff) - amt,
+        B = (num & 0x0000ff) - amt;
+
+    return `rgb(${clamp(R)},${clamp(G)},${clamp(B)})`;
+}
+
+function clamp(v) {
+    return Math.max(0, Math.min(255, v));
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+function drawBlock(ctx, x, y, color, size, alpha = 1) {
+
+    const px = x * size;
+    const py = y * size;
+
+    ctx.save();
     ctx.globalAlpha = alpha;
 
-    ctx.fillStyle = color;
+    // Base gradient (gives depth)
+    const grad = ctx.createLinearGradient(px, py, px + size, py + size);
+    grad.addColorStop(0, lighten(color, 25));
+    grad.addColorStop(0.5, color);
+    grad.addColorStop(1, darken(color, 35));
 
-    ctx.fillRect(
-        x*size,
-        y*size,
-        size,
-        size
-    );
+    ctx.fillStyle = grad;
 
-    ctx.strokeStyle =
-        "rgba(255,255,255,.15)";
+    // Rounded block (modern feel)
+    roundRect(ctx, px + 1, py + 1, size - 2, size - 2, 6);
+    ctx.fill();
 
-    ctx.strokeRect(
-        x*size,
-        y*size,
-        size,
-        size
-    );
+    // Inner highlight (top-left shine)
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 2, py + 2, size - 4, size - 4);
 
-    ctx.globalAlpha = 1;
+    // Subtle shadow edge
+    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.strokeRect(px, py, size, size);
+
+    ctx.restore();
 }
 
 function drawGhost(){
@@ -1614,6 +1655,9 @@ function draw(){
     if(piece){
 
         drawGhost();
+		
+		ctx.shadowColor = COLORS[piece.type];
+		ctx.shadowBlur = 12;
 
         piece.matrix.forEach((row,y)=>{
 
