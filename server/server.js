@@ -19,6 +19,8 @@ const PORT = process.env.PORT || 3000;
 
 let onlineCount = 0;
 
+const matchmakingQueue = [];
+
 const rooms = {}; 
 // roomId -> { players: [], ready: Set, maxPlayers }
 
@@ -177,80 +179,45 @@ io.on("connection", (socket) => {
     }
 
     /* FIND MATCH (simple queue system) */
-	socket.on("findMatch", ({
-		maxPlayers,
-		rank,
-		rankPoints
-	}) => {
+	socket.on("findMatch", ({ maxPlayers, rankPoints }) => {
 	
-		socket.data.rank = rank || "BRONZE";
-		socket.data.rankPoints = rankPoints || 0;
+		// 1. try find opponent in queue
+		let index = matchmakingQueue.findIndex(p =>
+			p.maxPlayers === maxPlayers &&
+			Math.abs((p.rankPoints || 0) - rankPoints) <= 300
+		);
 	
-		let foundRoom = null;
+		if (index !== -1) {
 	
-		for (const id in rooms) {
+			const opponent = matchmakingQueue.splice(index, 1)[0];
 	
-			const r = rooms[id];
+			const room = Math.random()
+				.toString(36)
+				.substring(2, 7)
+				.toUpperCase();
 	
-			// skip full rooms
-			if (r.players.length >= r.maxPlayers)
-				continue;
-	
-			// skip different mode
-			if (r.maxPlayers !== maxPlayers)
-				continue;
-	
-			// get first player in room
-			const firstPlayerId = r.players[0];
-	
-			const firstSocket =
-				io.sockets.sockets.get(firstPlayerId);
-	
-			if (!firstSocket)
-				continue;
-	
-			const otherRP =
-				firstSocket.data.rankPoints || 0;
-	
-			const diff =
-				Math.abs(rankPoints - otherRP);
-	
-			// ranked range
-			let allowedDiff = 300;
-	
-			if(rankPoints >= 2000){
-				allowedDiff = 500;
-			}
-	
-			if(diff <= allowedDiff){
-	
-				foundRoom = id;
-				break;
-			}
-		}
-	
-		// no room found -> create new
-		if (!foundRoom) {
-	
-			const newRoom =
-				Math.random()
-					.toString(36)
-					.substring(2, 7)
-					.toUpperCase();
-	
-			rooms[newRoom] = {
+			rooms[room] = {
 				players: [],
 				ready: new Set(),
 				maxPlayers
 			};
 	
-			foundRoom = newRoom;
+			joinRoomInternal(socket, room);
+			joinRoomInternal(opponent.socket, room);
+	
+			socket.emit("matchFound", { room });
+			opponent.socket.emit("matchFound", { room });
+	
+			io.to(room).emit("startMatch");
+	
+			return;
 		}
 	
-		joinRoomInternal(socket, foundRoom);
-	
-		socket.emit("matchFound", {
-			room: foundRoom
+		// 2. no match → add to queue
+		matchmakingQueue.push({
+			socket,
+			maxPlayers,
+			rankPoints
 		});
 	});
 
@@ -335,12 +302,22 @@ io.on("connection", (socket) => {
     });
 
     /* DISCONNECT */
-    socket.on("disconnect", () => {
-        onlineCount--;
-        io.emit("onlineCount", onlineCount);
-
-        removePlayerFromRoom(socket);
-    });
+	socket.on("disconnect", () => {
+		onlineCount--;
+		io.emit("onlineCount", onlineCount);
+	
+		// ✅ REMOVE FROM MATCHMAKING QUEUE
+		const qIndex = matchmakingQueue.findIndex(
+			p => p.socket.id === socket.id
+		);
+	
+		if (qIndex !== -1) {
+			matchmakingQueue.splice(qIndex, 1);
+		}
+	
+		// existing cleanup
+		removePlayerFromRoom(socket);
+	});
 });
 
 /* -----------------------------
