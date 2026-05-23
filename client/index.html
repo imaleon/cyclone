@@ -2235,61 +2235,39 @@ function setMatchChatEnabled(enabled){
 
 function addLobbyChat(msg){
 
-    const box =
-        document.getElementById(
-            "lobbyChatBox"
-        );
+    const box = document.getElementById("lobbyChatBox");
 
-    const div =
-        document.createElement("div");
-
+    const div = document.createElement("div");
     div.className = "chatMsg";
 
-	if(typeof msg === "object"){
-	
-		div.textContent =
-			`${msg.username}: ${msg.msg}`;
-	
-	}else{
-	
-		div.textContent = msg;
-	}
+    const name =
+        (msg.username === username) ? "Me" : msg.username;
+
+    div.textContent = `${name}: ${msg.msg}`;
 
     box.appendChild(div);
 
-    requestAnimationFrame(()=>{
-        box.scrollTop =
-            box.scrollHeight;
+    requestAnimationFrame(() => {
+        box.scrollTop = box.scrollHeight;
     });
 }
 
 function addMatchChat(msg){
 
-    const box =
-        document.getElementById(
-            "matchChatBox"
-        );
+    const box = document.getElementById("matchChatBox");
 
-    const div =
-        document.createElement("div");
-
+    const div = document.createElement("div");
     div.className = "chatMsg";
 
-	if(typeof msg === "object"){
-	
-		div.textContent =
-			`${msg.username}: ${msg.msg}`;
-	
-	}else{
-	
-		div.textContent = msg;
-	}
+    const name =
+        (msg.username === username) ? "Me" : msg.username;
+
+    div.textContent = `${name}: ${msg.msg}`;
 
     box.appendChild(div);
 
-    requestAnimationFrame(()=>{
-        box.scrollTop =
-            box.scrollHeight;
+    requestAnimationFrame(() => {
+        box.scrollTop = box.scrollHeight;
     });
 }
 
@@ -2322,31 +2300,24 @@ function sendLobbyChat(){
 
 function sendMatchChat(){
 
-    if(!isLoggedIn)
-        return;
+    if(!isLoggedIn) return;
+    if(!room) return;
 
-    if(!room)
-        return;
+    const input = document.getElementById("matchChatInput");
+    const msg = input.value.trim();
 
-    const input =
-        document.getElementById(
-            "matchChatInput"
-        );
+    if(!msg) return;
 
-    const msg =
-        input.value.trim();
+    const payload = {
+        room,
+        username,
+        msg
+    };
 
-    if(!msg)
-        return;
+    socket.emit("matchChatMessage", payload);
 
-    socket.emit(
-        "matchChatMessage",
-        {
-            room,
-            username,
-            msg
-        }
-    );
+    // ✅ SHOW OWN MESSAGE IMMEDIATELY
+    addMatchChat(payload);
 
     input.value = "";
 }
