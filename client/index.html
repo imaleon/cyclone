@@ -2194,19 +2194,21 @@ function addMatchChat(msg){
 function sendLobbyChat(){
 
     const input =
-        document.getElementById(
-            "lobbyChatInput"
-        );
+        document.getElementById("lobbyChatInput");
 
     const msg =
         input.value.trim();
 
     if(!msg) return;
 
-    socket.emit(
-        "lobbyChatMessage",
-        msg
-    );
+    // 👇 local immediate render (POV: Me)
+    addLobbyChat("Me: " + msg);
+
+    // 👇 send structured message to server
+    socket.emit("lobbyChatMessage", {
+        msg,
+        sender: "Me"
+    });
 
     input.value = "";
 }
