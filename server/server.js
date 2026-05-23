@@ -69,7 +69,7 @@ io.on("connection", (socket) => {
     socket.on("matchChatMessage", ({ room, msg }) => {
         if (!rooms[room]) return;
 
-        io.to(room).emit("matchChatMessage", `Player: ${msg}`);
+        // do nothing or only store if needed
     });
 
     /* =========================
