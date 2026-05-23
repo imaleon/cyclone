@@ -504,7 +504,7 @@ canvas {
 	</button>
 
     <button onclick="findMatch()">
-        RANDOM PVP
+        FIND MATCH
     </button>
 
     <input
@@ -863,6 +863,37 @@ canvas {
 		</button>
 	</div>
 	
+	<div id="matchmakingPopup" style="
+		display:none;
+		position:fixed;
+		inset:0;
+		background:rgba(0,0,0,.75);
+		z-index:10000;
+		justify-content:center;
+		align-items:center;
+	">
+		<div style="
+			background:#0d1025;
+			border:2px solid #1a224d;
+			padding:20px;
+			border-radius:12px;
+			text-align:center;
+			width:260px;
+		">
+			<h2 style="color:#00f0ff;">FINDING MATCH</h2>
+	
+			<div id="matchmakingStatus" style="margin-top:10px; color:#8090c9;">
+				Searching for players...
+			</div>
+	
+			<div style="margin-top:15px;">
+				<button onclick="cancelMatchmaking()">
+					CANCEL
+				</button>
+			</div>
+		</div>
+	</div>
+	
 	<div id="rematchPopup" style="
 		display:none;
 		position:fixed;
@@ -1016,6 +1047,14 @@ let messageTimer = 0;
 
 let combo = -1;
 let backToBack = false;
+
+function showMatchmakingPopup(){
+    document.getElementById("matchmakingPopup").style.display = "flex";
+}
+
+function hideMatchmakingPopup(){
+    document.getElementById("matchmakingPopup").style.display = "none";
+}
 
 function login(){
 
@@ -2115,7 +2154,7 @@ function startSolo(){
 
 function findMatch() {
 
-    if (matchmaking) return; // already searching
+    if (matchmaking) return;
 
     leaveCurrentRoom();
 
@@ -2128,12 +2167,14 @@ function findMatch() {
 
     document.getElementById("status").innerText = "SEARCHING...";
 
-	socket.emit("findMatch", {
-		maxPlayers,
-		autoJoin: true,
-		rank: playerRank,
-		rankPoints
-	});
+    showMatchmakingPopup(); // ✅ SHOW POPUP
+
+    socket.emit("findMatch", {
+        maxPlayers,
+        autoJoin: true,
+        rank: playerRank,
+        rankPoints
+    });
 
     clearTimeout(matchmakingTimeout);
 
@@ -2141,7 +2182,12 @@ function findMatch() {
 
         if (matchmaking) {
             matchmaking = false;
-            document.getElementById("status").innerText = "MATCHMAKING FAILED";
+
+            hideMatchmakingPopup(); // ❌ hide popup
+
+            document.getElementById("status").innerText =
+                "MATCHMAKING FAILED";
+
             alert("Unable to find match.");
         }
 
@@ -2711,6 +2757,8 @@ socket.on("opponentLeft", () => {
 
 socket.on("matchFound", data => {
 
+    hideMatchmakingPopup(); // ✅ ADD THIS
+
     clearTimeout(matchmakingTimeout);
     matchmaking = false;
     multiplayer = true;
@@ -2724,10 +2772,6 @@ socket.on("matchFound", data => {
         .innerText = "JOINED MATCH";
 
     document.getElementById("readyBtn").style.display = "block";
-
-    // ❌ REMOVE THIS LINE (causes duplicate join bugs)
-    // socket.emit("joinRoom", { room });
-
 });
 
 socket.on("roomCreated", r => {
@@ -2744,7 +2788,9 @@ socket.on("roomCreated", r => {
 
 socket.on("roomJoined", r => {
 
-	clearTimeout(matchmakingTimeout);
+    hideMatchmakingPopup(); // ✅ ADD THIS
+
+    clearTimeout(matchmakingTimeout);
 
     matchmaking = false;
 
