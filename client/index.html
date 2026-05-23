@@ -1700,28 +1700,26 @@ function draw(){
 		messageTimer--;
 	}
 
-    if(paused){
-
-        ctx.fillStyle =
-            "rgba(0,0,0,.7)";
-
-        ctx.fillRect(
-            0,
-            0,
-            canvas.width,
-            canvas.height
-        );
-
-        ctx.fillStyle = "#00f0ff";
-
-        ctx.font = "40px Consolas";
-
-        ctx.fillText(
-            "PAUSED",
-            50,
-            300
-        );
-    }
+	if (paused) {
+	
+		ctx.fillStyle = "rgba(0,0,0,.7)";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	
+		ctx.save();
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+	
+		ctx.fillStyle = "#00f0ff";
+		ctx.font = "bold 40px Consolas";
+	
+		ctx.fillText(
+			"PAUSED",
+			canvas.width / 2,
+			canvas.height / 2
+		);
+	
+		ctx.restore();
+	}
 }
 
 function drawMini(ctx2,type){
