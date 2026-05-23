@@ -581,13 +581,13 @@ canvas {
 				<canvas id="next" width="80" height="80" class="small"></canvas>
 			</div>
 		
-		<div class="card" style="width:190px;">
+		<div class="card" style="width:200px;">
 			<div class="label">MOBILE</div>
 		
 			<div style="
 				font-size:.7rem;
 				line-height:1;
-				width:170px;
+				width:180px;
 				margin:0 auto;
 				text-align:center;
 			">
@@ -2170,7 +2170,7 @@ function requestRematch(){
     const panel = document.getElementById("matchEndPanel");
 
     panel.querySelectorAll("button").forEach(btn => {
-        btn.disabled = true;
+        btn.disabled = false;
     });
 
     setMatchChatEnabled(true);
