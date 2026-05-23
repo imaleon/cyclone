@@ -126,6 +126,21 @@ input{
     font-weight:bold;
 }
 
+#rank{
+    color:#cd7f32;
+}
+
+.rank-bronze{ color:#cd7f32; }
+.rank-silver{ color:#c0c0c0; }
+.rank-gold{ color:#ffd700; }
+.rank-platinum{ color:#66ffff; }
+.rank-diamond{ color:#7f7fff; }
+.rank-master{ color:#ff44cc; }
+.rank-grandmaster{
+    color:#ff0033;
+    text-shadow:0 0 12px #ff0033;
+}
+
 canvas{
     background:#010206;
     border-radius:10px;
@@ -484,10 +499,78 @@ canvas {
 
     <div class="panel">
 
-        <div class="card">
-            <div class="label">HOLD</div>
-            <canvas id="hold" width="80" height="80" class="small"></canvas>
-        </div>
+		<div style="
+			display:flex;
+			gap:10px;
+			align-items:stretch;
+		
+			margin-left:-70px;
+		">
+		
+			<!-- RANK PANEL -->
+			<div class="card" style="
+				width:110px;
+				display:flex;
+				flex-direction:column;
+				justify-content:center;
+				align-items:center;
+			">
+		
+				<div class="label">
+					RANK
+				</div>
+		
+				<div
+					id="rank"
+					class="value rank-bronze"
+					style="
+						font-size:1rem;
+						text-align:center;
+					"
+				>
+					BRONZE
+				</div>
+		
+				<div
+					class="label"
+					style="margin-top:10px;"
+				>
+					RP
+				</div>
+		
+				<div
+					id="rankPoints"
+					class="value"
+					style="font-size:1rem;"
+				>
+					0
+				</div>
+		
+			</div>
+		
+			<!-- HOLD PANEL -->
+			<div class="card" style="
+				width:100px;
+				display:flex;
+				flex-direction:column;
+				align-items:center;
+				justify-content:center;
+			">
+		
+				<div class="label">
+					HOLD
+				</div>
+		
+				<canvas
+					id="hold"
+					width="80"
+					height="80"
+					class="small"
+				></canvas>
+		
+			</div>
+		
+		</div>
 		
 		<div class="card">
 			<div class="label">BEST</div>
@@ -814,6 +897,13 @@ let nextPiece = null;
 let holdPiece = null;
 let canHold = true;
 
+let rankPoints =
+    parseInt(
+        localStorage.getItem("tetris_rank_points")
+    ) || 0;
+
+let playerRank = "BRONZE";
+
 let highScore =
     parseInt(
         localStorage.getItem(
@@ -876,9 +966,11 @@ function login(){
 
     // optional:
     // send username to server
-    socket.emit("login",{
-        username
-    });
+	socket.emit("login",{
+		username,
+		rank: playerRank,
+		rankPoints
+	});
 
     // show game menu
     showMenu();
@@ -1616,6 +1708,36 @@ function update(time=0){
         requestAnimationFrame(update);
 }
 
+function calculateRank(points){
+
+    if(points >= 3000) return "GRANDMASTER";
+    if(points >= 2000) return "MASTER";
+    if(points >= 1400) return "DIAMOND";
+    if(points >= 900) return "PLATINUM";
+    if(points >= 500) return "GOLD";
+    if(points >= 250) return "SILVER";
+
+    return "BRONZE";
+}
+
+function addRankPoints(amount){
+
+    rankPoints += amount;
+
+    if(rankPoints < 0)
+        rankPoints = 0;
+
+    playerRank =
+        calculateRank(rankPoints);
+
+    localStorage.setItem(
+        "tetris_rank_points",
+        rankPoints
+    );
+
+    updateUI();
+}
+
 function updateUI(){
 
 	if(!multiplayer){
@@ -1649,6 +1771,22 @@ function updateUI(){
 
     document.getElementById("level")
         .innerText = level;
+		
+	document.getElementById("rank")
+		.innerText = playerRank;
+	
+	document.getElementById("rankPoints")
+		.innerText = rankPoints;
+		
+	const rankEl =
+		document.getElementById("rank");
+	
+	rankEl.className = "value";
+	
+	rankEl.classList.add(
+		"rank-" +
+		playerRank.toLowerCase()
+	);
 }
 
 function showMenu(){
@@ -1802,6 +1940,8 @@ function gameOver(){
     cancelAnimationFrame(animationId);
 
     if(multiplayer){
+	
+		addRankPoints(-15);
 
         socket.emit("lost", room);
 
@@ -1865,10 +2005,12 @@ function findMatch() {
 
     document.getElementById("status").innerText = "SEARCHING...";
 
-    socket.emit("findMatch", {
-        maxPlayers,
-        autoJoin: true
-    });
+	socket.emit("findMatch", {
+		maxPlayers,
+		autoJoin: true,
+		rank: playerRank,
+		rankPoints
+	});
 
     clearTimeout(matchmakingTimeout);
 
@@ -2568,6 +2710,8 @@ socket.on("win", () => {
     running = false;
 
     cancelAnimationFrame(animationId);
+	
+	addRankPoints(25);
 
     showMatchChat();
     showMatchEndPanel();

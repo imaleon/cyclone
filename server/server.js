@@ -97,9 +97,21 @@ io.on("connection", (socket) => {
     io.emit("onlineCount", onlineCount);
 
     /* LOGIN */
-    socket.on("login", ({ username }) => {
-        socket.data.username = username || "PLAYER";
-    });
+	socket.on("login", ({
+		username,
+		rank,
+		rankPoints
+	}) => {
+	
+		socket.data.username =
+			username || "PLAYER";
+	
+		socket.data.rank =
+			rank || "BRONZE";
+	
+		socket.data.rankPoints =
+			rankPoints || 0;
+	});
 
     /* LOBBY CHAT */
     socket.on("lobbyChatMessage", (msg) => {
@@ -165,33 +177,82 @@ io.on("connection", (socket) => {
     }
 
     /* FIND MATCH (simple queue system) */
-    socket.on("findMatch", ({ maxPlayers }) => {
-        let foundRoom = null;
-
-        for (const id in rooms) {
-            const r = rooms[id];
-            if (r.players.length < r.maxPlayers) {
-                foundRoom = id;
-                break;
-            }
-        }
-
-        if (!foundRoom) {
-            const newRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
-
-            rooms[newRoom] = {
-                players: [],
-                ready: new Set(),
-                maxPlayers
-            };
-
-            foundRoom = newRoom;
-        }
-
-        joinRoomInternal(socket, foundRoom);
-
-        socket.emit("matchFound", foundRoom);
-    });
+	socket.on("findMatch", ({
+		maxPlayers,
+		rank,
+		rankPoints
+	}) => {
+	
+		socket.data.rank = rank || "BRONZE";
+		socket.data.rankPoints = rankPoints || 0;
+	
+		let foundRoom = null;
+	
+		for (const id in rooms) {
+	
+			const r = rooms[id];
+	
+			// skip full rooms
+			if (r.players.length >= r.maxPlayers)
+				continue;
+	
+			// skip different mode
+			if (r.maxPlayers !== maxPlayers)
+				continue;
+	
+			// get first player in room
+			const firstPlayerId = r.players[0];
+	
+			const firstSocket =
+				io.sockets.sockets.get(firstPlayerId);
+	
+			if (!firstSocket)
+				continue;
+	
+			const otherRP =
+				firstSocket.data.rankPoints || 0;
+	
+			const diff =
+				Math.abs(rankPoints - otherRP);
+	
+			// ranked range
+			let allowedDiff = 300;
+	
+			if(rankPoints >= 2000){
+				allowedDiff = 500;
+			}
+	
+			if(diff <= allowedDiff){
+	
+				foundRoom = id;
+				break;
+			}
+		}
+	
+		// no room found -> create new
+		if (!foundRoom) {
+	
+			const newRoom =
+				Math.random()
+					.toString(36)
+					.substring(2, 7)
+					.toUpperCase();
+	
+			rooms[newRoom] = {
+				players: [],
+				ready: new Set(),
+				maxPlayers
+			};
+	
+			foundRoom = newRoom;
+		}
+	
+		joinRoomInternal(socket, foundRoom);
+	
+		socket.emit("matchFound", {
+			room: foundRoom
+		});
+	});
 
     /* READY */
     socket.on("playerReady", (room) => {
