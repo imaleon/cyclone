@@ -15,11 +15,13 @@ const PORT = process.env.PORT || 3000;
 
 /*
 ========================================
-GLOBAL ONLINE TRACKING
+GLOBAL ONLINE PLAYERS
 ========================================
 */
-function emitOnlineCount() {
-    io.emit("onlineCount", io.engine.clientsCount);
+let onlinePlayers = 0;
+
+function broadcastOnline() {
+    io.emit("onlineCount", onlinePlayers);
 }
 
 /*
@@ -59,7 +61,6 @@ function leaveRoom(socket, room) {
         rooms[room].players.filter(id => id !== socket.id);
 
     delete rooms[room].ready[socket.id];
-
     rooms[room].rematchVotes.delete(socket.id);
 
     socket.to(room).emit("opponentLeft");
@@ -79,9 +80,10 @@ SOCKET
 */
 io.on("connection", socket => {
 
-    console.log("CONNECTED:", socket.id);
+    onlinePlayers++;
+    broadcastOnline();
 
-    emitOnlineCount();
+    console.log("CONNECTED:", socket.id);
 
     /*
     ========================================
@@ -92,7 +94,8 @@ io.on("connection", socket => {
 
         console.log("DISCONNECTED:", socket.id);
 
-        emitOnlineCount();
+        onlinePlayers--;
+        broadcastOnline();
 
         for (const room in rooms) {
             if (rooms[room].players.includes(socket.id)) {
@@ -107,11 +110,8 @@ io.on("connection", socket => {
     ========================================
     */
     socket.on("lobbyChatMessage", msg => {
-
         const text = `Player: ${msg}`;
-
         lobbyChat.push(text);
-
         io.emit("lobbyChatMessage", text);
     });
 
@@ -136,11 +136,6 @@ io.on("connection", socket => {
         socket.join(room);
 
         socket.emit("roomCreated", room);
-
-        io.to(room).emit("playerCount", {
-            players: rooms[room].players.length,
-            maxPlayers
-        });
 
         console.log("ROOM CREATED:", room);
     });
@@ -186,7 +181,6 @@ io.on("connection", socket => {
         let foundRoom = null;
 
         for (const room in rooms) {
-
             const r = rooms[room];
 
             if (
@@ -251,7 +245,7 @@ io.on("connection", socket => {
 
     /*
     ========================================
-    BOARD SYNC
+    GAME DATA
     ========================================
     */
     socket.on("board", data => {
@@ -261,31 +255,20 @@ io.on("connection", socket => {
         });
     });
 
-    /*
-    ========================================
-    GARBAGE
-    ========================================
-    */
     socket.on("garbage", data => {
         socket.to(data.room).emit("receiveGarbage", data.garbage);
     });
 
-    /*
-    ========================================
-    MATCH CHAT (UPDATED WITH POV SUPPORT)
-    ========================================
-    */
     socket.on("matchChatMessage", data => {
-
-        io.to(data.room).emit("matchChatMessage", {
-            msg: data.msg,
-            id: socket.id
-        });
+        socket.to(data.room).emit(
+            "matchChatMessage",
+            `Player: ${data.msg}`
+        );
     });
 
     /*
     ========================================
-    LOST / WIN
+    GAME END
     ========================================
     */
     socket.on("lost", room => {
@@ -300,7 +283,7 @@ io.on("connection", socket => {
 
     /*
     ========================================
-    REMATCH
+    REMATCH SYSTEM
     ========================================
     */
     socket.on("rematchRequest", ({ room }) => {
