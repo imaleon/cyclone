@@ -342,6 +342,47 @@ canvas {
 
 <body>
 
+<div id="loginScreen" style="
+    position:fixed;
+    inset:0;
+    background:#030409;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:99999;
+">
+    <div style="
+        background:#0d1025;
+        padding:20px;
+        border:2px solid #1a224d;
+        border-radius:12px;
+        width:260px;
+        text-align:center;
+    ">
+        <h2 style="color:#00f0ff;">LOGIN</h2>
+
+        <input
+            id="usernameInput"
+            placeholder="USERNAME"
+            style="
+                width:100%;
+                margin-top:10px;
+                text-transform:uppercase;
+            "
+        />
+
+        <button
+            onclick="login()"
+            style="
+                margin-top:10px;
+                width:100%;
+            "
+        >
+            ENTER
+        </button>
+    </div>
+</div>
+
 <div id="gameWrapper">
 
 <h1>TETRA CLASH ONLINE</h1>
@@ -690,9 +731,12 @@ canvas {
 </div>
 
 <script>
-const SERVER_URL = "https://tetrisonline.onrender.com";
+const SERVER_URL = "http://localhost:3000";
 
 const socket = io(SERVER_URL);
+
+let isLoggedIn = false;
+let username = "";
 
 const COLS = 10;
 const ROWS = 20;
@@ -797,6 +841,48 @@ let messageTimer = 0;
 
 let combo = -1;
 let backToBack = false;
+
+function login(){
+
+    const input =
+        document.getElementById(
+            "usernameInput"
+        );
+
+    const name =
+        input.value
+            .trim()
+            .toUpperCase();
+
+    if(!name){
+
+        alert("ENTER USERNAME");
+        return;
+    }
+
+    username = name;
+	
+	localStorage.setItem(
+		"tetris_username",
+		username
+	);
+
+    isLoggedIn = true;
+
+    // hide login screen
+    document.getElementById(
+        "loginScreen"
+    ).style.display = "none";
+
+    // optional:
+    // send username to server
+    socket.emit("login",{
+        username
+    });
+
+    // show game menu
+    showMenu();
+}
 
 function resetBoard(){
 
@@ -2159,7 +2245,15 @@ function addLobbyChat(msg){
 
     div.className = "chatMsg";
 
-    div.textContent = msg;
+	if(typeof msg === "object"){
+	
+		div.textContent =
+			`${msg.username}: ${msg.msg}`;
+	
+	}else{
+	
+		div.textContent = msg;
+	}
 
     box.appendChild(div);
 
@@ -2181,7 +2275,15 @@ function addMatchChat(msg){
 
     div.className = "chatMsg";
 
-    div.textContent = msg;
+	if(typeof msg === "object"){
+	
+		div.textContent =
+			`${msg.username}: ${msg.msg}`;
+	
+	}else{
+	
+		div.textContent = msg;
+	}
 
     box.appendChild(div);
 
@@ -2193,6 +2295,9 @@ function addMatchChat(msg){
 
 function sendLobbyChat(){
 
+    if(!isLoggedIn)
+        return;
+
     const input =
         document.getElementById(
             "lobbyChatInput"
@@ -2201,11 +2306,15 @@ function sendLobbyChat(){
     const msg =
         input.value.trim();
 
-    if(!msg) return;
+    if(!msg)
+        return;
 
     socket.emit(
         "lobbyChatMessage",
-        msg
+        {
+            username,
+            msg
+        }
     );
 
     input.value = "";
@@ -2213,22 +2322,31 @@ function sendLobbyChat(){
 
 function sendMatchChat(){
 
-    if(!room) return; // ONLY this should block
+    if(!isLoggedIn)
+        return;
+
+    if(!room)
+        return;
 
     const input =
-        document.getElementById("matchChatInput");
+        document.getElementById(
+            "matchChatInput"
+        );
 
-    input.focus(); // 🔥 ensures clickable even after match ends
+    const msg =
+        input.value.trim();
 
-    const msg = input.value.trim();
-    if(!msg) return;
+    if(!msg)
+        return;
 
-    socket.emit("matchChatMessage", {
-        room,
-        msg
-    });
-
-    addMatchChat("Me: " + msg);
+    socket.emit(
+        "matchChatMessage",
+        {
+            room,
+            username,
+            msg
+        }
+    );
 
     input.value = "";
 }
@@ -2709,11 +2827,36 @@ holdCanvas.addEventListener("click", () => {
     hold();
 });
 
-showMenu();
+// showMenu();
 
 window.addEventListener("resize", scaleGame);
 window.addEventListener("load", scaleGame);
+window.addEventListener("load", () => {
+
+    const saved =
+        localStorage.getItem(
+            "tetris_username"
+        );
+
+    if(saved){
+
+        document.getElementById(
+            "usernameInput"
+        ).value = saved;
+    }
+});
+
 scaleGame();
+
+document.getElementById(
+    "usernameInput"
+).addEventListener("keydown", e => {
+
+    if(e.key === "Enter"){
+
+        login();
+    }
+});
 
 window.addEventListener("beforeunload",()=>{
     if(multiplayer && room){
