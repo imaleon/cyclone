@@ -275,13 +275,12 @@ io.on("connection", socket => {
     MATCH CHAT (UPDATED WITH POV SUPPORT)
     ========================================
     */
-    socket.on("matchChatMessage", data => {
-
-        io.to(data.room).emit("matchChatMessage", {
-            msg: data.msg,
-            id: socket.id
-        });
-    });
+	socket.on("matchChatMessage", ({ room, msg }) => {
+		socket.to(room).emit("matchChatMessage", {
+			msg,
+			senderId: socket.id
+		});
+	});
 
     /*
     ========================================
