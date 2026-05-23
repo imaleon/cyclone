@@ -330,6 +330,13 @@ body {
 canvas {
     pointer-events: auto;
 }
+
+#onlinePlayers{
+    text-align:center;
+    color:#00f0ff;
+    font-size:.9rem;
+    margin-top:5px;
+}
 </style>
 </head>
 
@@ -380,8 +387,8 @@ canvas {
 	<div id="playerCount">
 		PLAYERS: 1/4
 	</div>
-	<div id="onlineCount" style="text-align:center;color:#8090c9;font-size:.9rem;">
-		ONLINE: 1
+	<div id="onlinePlayers">
+		ONLINE: 0
 	</div>
 </div>
 
@@ -1916,14 +1923,8 @@ function createOpponentBoard(id){
 
     name.className = "enemyName";
 
-	const ids = Object.keys(opponents);
-	const index = ids.length + 1;
-	
-	if (id === socket.id) {
-		name.innerText = "ME";
-	} else {
-		name.innerText = "PLAYER " + index;
-	}
+    name.innerText =
+        "PLAYER";
 
     const canvas =
         document.createElement("canvas");
@@ -2168,23 +2169,25 @@ function addLobbyChat(msg){
     });
 }
 
-function addMatchChat(msg, senderId = null){
+function addMatchChat(msg){
 
-    const box = document.getElementById("matchChatBox");
+    const box =
+        document.getElementById(
+            "matchChatBox"
+        );
 
-    const div = document.createElement("div");
+    const div =
+        document.createElement("div");
+
     div.className = "chatMsg";
 
-    const isMe = senderId === socket.id;
-
-    const name = isMe ? "ME" : "PLAYER";
-
-    div.textContent = `${name}: ${msg}`;
+    div.textContent = msg;
 
     box.appendChild(div);
 
-    requestAnimationFrame(() => {
-        box.scrollTop = box.scrollHeight;
+    requestAnimationFrame(()=>{
+        box.scrollTop =
+            box.scrollHeight;
     });
 }
 
@@ -2210,9 +2213,12 @@ function sendLobbyChat(){
 
 function sendMatchChat(){
 
-    if(!room) return;
+    if(!room) return; // ONLY this should block
 
-    const input = document.getElementById("matchChatInput");
+    const input =
+        document.getElementById("matchChatInput");
+
+    input.focus(); // 🔥 ensures clickable even after match ends
 
     const msg = input.value.trim();
     if(!msg) return;
@@ -2222,7 +2228,7 @@ function sendMatchChat(){
         msg
     });
 
-    addMatchChat(msg, socket.id); // mark as ME properly
+    addMatchChat("Me: " + msg);
 
     input.value = "";
 }
@@ -2257,16 +2263,19 @@ socket.on(
     }
 );
 
-socket.on("matchChatMessage", data => {
-    const msg = data.msg ?? data;   // fallback if server still sends string
-    const senderId = data.senderId ?? null;
+socket.on(
+    "matchChatMessage",
+    msg => {
 
-    addMatchChat(msg, senderId);
-});
+        addMatchChat(msg);
+    }
+);
 
 socket.on("onlineCount", count => {
-    document.getElementById("onlineCount").innerText =
-        `ONLINE: ${count}`;
+    const el = document.getElementById("onlinePlayers");
+    if (el) {
+        el.innerText = `ONLINE: ${count}`;
+    }
 });
 
 socket.on("rematchStart", () => {
