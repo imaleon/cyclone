@@ -330,59 +330,6 @@ body {
 canvas {
     pointer-events: auto;
 }
-
-#mobileControls{
-    position:fixed;
-    bottom:15px;
-    left:-40%;
-    width:207%;
-    display:flex;
-    justify-content:space-between;
-    padding:0 15px;
-    z-index:9999;
-    pointer-events:none;
-}
-
-#mobileLeft, #mobileRight{
-    display:flex;
-    gap:8px;
-    pointer-events:auto;
-}
-
-.mbtn{
-    width:75px;
-    height:75px;
-    border-radius:12px;
-    border:1px solid #253066;
-    background:#0d1025;
-    color:#00f0ff;
-    font-weight:bold;
-    font-size:12px;
-    box-shadow:0 0 10px rgba(0,240,255,.15);
-}
-
-.mbtn:active{
-    transform:scale(0.92);
-}
-
-.menuBtn{
-    background:#1a224d;
-    color:white;
-}
-
-/* HIDE by default on desktop */
-#mobileControls{
-    display:none;
-}
-
-/* SHOW only on mobile */
-@media (max-width: 768px){
-
-    #mobileControls{
-        display:flex;
-    }
-
-}
 </style>
 </head>
 
@@ -432,6 +379,9 @@ canvas {
 	</div>
 	<div id="playerCount">
 		PLAYERS: 1/4
+	</div>
+	<div id="onlineCount" style="text-align:center;color:#8090c9;font-size:.9rem;">
+		ONLINE: 1
 	</div>
 </div>
 
@@ -510,40 +460,69 @@ canvas {
             <div class="label">LEVEL</div>
             <div id="level" class="value">1</div>
         </div>
-		<div class="card">
-			<div class="label">MENU</div>
 		
-			<button onclick="backToMenu()">
-				MAIN MENU
-			</button>
+		<div style="display:flex; gap:10px; align-items:stretch; margin-left:-269px;">
+		
+			<!-- LEFT/RIGHT BUTTON BOX -->
+			<div class="card" style="
+				width:260px;
+				display:flex;
+				flex-direction:column;
+				gap:10px;
+				justify-content:center;
+				align-items:center;
+			">
+		
+				<div style="display:flex; gap:8px;">
+		
+					<button
+						onclick="moveLeft()"
+						style="
+							width:120px;
+							height:55px;
+							font-size:.9rem;
+							padding:0;
+						"
+					>
+						←
+					</button>
+		
+					<button
+						onclick="moveRight()"
+						style="
+							width:120px;
+							height:55px;
+							font-size:.9rem;
+							padding:0;
+						"
+					>
+						→
+					</button>
+		
+				</div>
+		
+			</div>
+		
+			<!-- MENU BOX -->
+			<div class="card" style="
+				display:flex;
+				flex-direction:column;
+				gap:10px;
+				justify-content:center;
+				align-items:center;
+				min-width:149px;
+			">
+		
+				<button onclick="backToMenu()">
+					MAIN MENU
+				</button>
+		
+			</div>
+		
 		</div>
     </div>
 
     <canvas id="board" width="300" height="600"></canvas>
-	
-	<!-- MOBILE CONTROL PAD -->
-	<div id="mobileControls">
-	
-		<!-- LEFT SIDE (movement + menu button) -->
-		<div id="mobileLeft">
-			<button class="mbtn" onclick="piece && moveLeft()">◀</button>
-	
-			<button class="mbtn" onclick="piece && moveRight()">▶</button>
-		</div>
-	
-		<!-- RIGHT SIDE (actions like PC controls) -->
-		<div id="mobileRight">
-			<button class="mbtn" onclick="rotate(true)">⟳</button>
-			<button class="mbtn" onclick="rotate(false)">⟲</button>
-	
-			<button class="mbtn" onclick="moveDown()">▼</button>
-	
-			<button class="mbtn" onclick="hardDrop()">⤓</button>
-			
-			<button class="mbtn" onclick="hold()">HOLD</button>
-		</div>
-	
-	</div>
 
     <div class="panel">
 
@@ -564,7 +543,8 @@ canvas {
 				margin:0 auto;
 				text-align:center;
 			">
-				TAP = ROTATE<br>
+				TAP SCREEN = ROTATE REVERSE<br>
+				TAP HOLD BOX =HOLD<br>
 				SWIPE LEFT/RIGHT = MOVE<br>
 				SWIPE DOWN = SOFT DROP<br>
 				LONG SWIPE DOWN = HARD DROP
@@ -579,9 +559,11 @@ canvas {
 			<div id="opponentsContainer"></div>
 		</div>
 
+	<div style="display:flex; gap:10px; align-items:stretch;">
+	
 		<div class="card" style="width:150px;">
 			<div class="label">CONTROLS</div>
-		
+	
 			<div
 				style="
 					font-size:.5rem;
@@ -600,7 +582,43 @@ canvas {
 				C/SHIFT HOLD
 			</div>
 		</div>
-    </div>
+	
+		<div class="card" style="
+			width:190px;
+			display:flex;
+			flex-direction:row;
+			gap:10px;
+			justify-content:center;
+			align-items:center;
+		">
+		
+			<button
+				onclick="rotate(true)"
+				style="
+					width:120px;
+					height:55px;
+					font-size:.9rem;
+				"
+			>
+				ROTATE
+			</button>
+		
+			<button
+				onclick="hardDrop()"
+				style="
+					width:120px;
+					height:55px;
+					font-size:.9rem;
+					background:linear-gradient(135deg,#ff007f,#ff5500);
+					color:white;
+				"
+			>
+				HARD DROP
+			</button>
+		
+		</div>
+	
+	</div>
 	
 	<div id="matchEndPanel" style="
 		display:none;
@@ -685,9 +703,11 @@ const nextCtx =
     document.getElementById("next")
         .getContext("2d");
 
+const holdCanvas =
+    document.getElementById("hold");
+
 const holdCtx =
-    document.getElementById("hold")
-        .getContext("2d");
+    holdCanvas.getContext("2d");
 
 let multiplayer = false;
 let room = null;
@@ -1896,8 +1916,14 @@ function createOpponentBoard(id){
 
     name.className = "enemyName";
 
-    name.innerText =
-        "PLAYER";
+	const ids = Object.keys(opponents);
+	const index = ids.length + 1;
+	
+	if (id === socket.id) {
+		name.innerText = "ME";
+	} else {
+		name.innerText = "PLAYER " + index;
+	}
 
     const canvas =
         document.createElement("canvas");
@@ -1961,11 +1987,11 @@ function handleTouchEnd(e){
 
     const time = Date.now() - touchStartTime;
 
-    // TAP (rotate)
-    if(absX < 20 && absY < 20 && time < 250){
-        rotate(true);
-        return;
-    }
+	// TAP (rotate reverse)
+	if(absX < 20 && absY < 20 && time < 250){
+		rotate(false);
+		return;
+	}
 
     // SWIPE LEFT
     if(absX > absY && dx < -30){
@@ -2142,25 +2168,27 @@ function addLobbyChat(msg){
     });
 }
 
-function addMatchChat(msg){
+function addMatchChat(msg, senderId = null){
 
-    const box =
-        document.getElementById(
-            "matchChatBox"
-        );
+    const box = document.getElementById("matchChatBox");
 
-    const div =
-        document.createElement("div");
-
+    const div = document.createElement("div");
     div.className = "chatMsg";
 
-    div.textContent = msg;
+    let name = "PLAYER";
+
+    if (!senderId) {
+        name = "ME";
+    } else if (senderId === socket.id) {
+        name = "ME";
+    }
+
+    div.textContent = `${name}: ${msg}`;
 
     box.appendChild(div);
 
-    requestAnimationFrame(()=>{
-        box.scrollTop =
-            box.scrollHeight;
+    requestAnimationFrame(() => {
+        box.scrollTop = box.scrollHeight;
     });
 }
 
@@ -2186,12 +2214,9 @@ function sendLobbyChat(){
 
 function sendMatchChat(){
 
-    if(!room) return; // ONLY this should block
+    if(!room) return;
 
-    const input =
-        document.getElementById("matchChatInput");
-
-    input.focus(); // 🔥 ensures clickable even after match ends
+    const input = document.getElementById("matchChatInput");
 
     const msg = input.value.trim();
     if(!msg) return;
@@ -2201,7 +2226,7 @@ function sendMatchChat(){
         msg
     });
 
-    addMatchChat("Me: " + msg);
+    addMatchChat(msg); // ME message locally
 
     input.value = "";
 }
@@ -2243,6 +2268,11 @@ socket.on(
         addMatchChat(msg);
     }
 );
+
+socket.on("onlineCount", count => {
+    document.getElementById("onlineCount").innerText =
+        `ONLINE: ${count}`;
+});
 
 socket.on("rematchStart", () => {
 
@@ -2655,6 +2685,25 @@ document.addEventListener("keydown",e=>{
 
 canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
 canvas.addEventListener("touchend", handleTouchEnd, { passive: false });	
+
+holdCanvas.addEventListener("touchstart", e => {
+
+    e.preventDefault();
+
+    if(!running || paused || matchEnded)
+        return;
+
+    hold();
+
+}, { passive:false });
+
+holdCanvas.addEventListener("click", () => {
+
+    if(!running || paused || matchEnded)
+        return;
+
+    hold();
+});
 
 showMenu();
 
