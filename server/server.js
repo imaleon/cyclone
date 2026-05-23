@@ -109,11 +109,23 @@ io.on("connection", socket => {
     LOBBY CHAT
     ========================================
     */
-    socket.on("lobbyChatMessage", msg => {
-        const text = `Player: ${msg}`;
-        lobbyChat.push(text);
-        io.emit("lobbyChatMessage", text);
-    });
+	socket.on("lobbyChatMessage", data => {
+	
+		// if server sends string (fallback)
+		if (typeof data === "string") {
+			addLobbyChat(data);
+			return;
+		}
+	
+		// POV formatting
+		const { msg, sender } = data;
+	
+		if (sender === "Me") {
+			addLobbyChat("Me: " + msg);
+		} else {
+			addLobbyChat(sender + ": " + msg);
+		}
+	});
 
     /*
     ========================================
