@@ -208,8 +208,6 @@ io.on("connection", (socket) => {
 			socket.emit("matchFound", { room });
 			opponent.socket.emit("matchFound", { room });
 	
-			io.to(room).emit("startMatch");
-	
 			return;
 		}
 	

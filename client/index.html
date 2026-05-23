@@ -2823,6 +2823,8 @@ socket.on("startMatch", () => {
         .style.display = "none";
 
     isReady = false;
+	
+	startGame();
 });
 
 socket.on("readyUpdate", data => {
