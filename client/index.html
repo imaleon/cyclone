@@ -2149,24 +2149,17 @@ function setMatchChatEnabled(enabled){
 
 function addLobbyChat(msg){
 
-    const box =
-        document.getElementById(
-            "lobbyChatBox"
-        );
+    const box = document.getElementById("lobbyChatBox");
 
-    const div =
-        document.createElement("div");
-
+    const div = document.createElement("div");
     div.className = "chatMsg";
-
     div.textContent = msg;
 
     box.appendChild(div);
 
-    requestAnimationFrame(()=>{
-        box.scrollTop =
-            box.scrollHeight;
-    });
+    setTimeout(() => {
+        box.scrollTop = box.scrollHeight;
+    }, 0);
 }
 
 function addMatchChat(msg){
@@ -2193,21 +2186,12 @@ function addMatchChat(msg){
 
 function sendLobbyChat(){
 
-    const input =
-        document.getElementById("lobbyChatInput");
-
-    const msg =
-        input.value.trim();
-
+    const input = document.getElementById("lobbyChatInput");
+    const msg = input.value.trim();
     if(!msg) return;
 
-    // 👇 local immediate render (POV: Me)
-    addLobbyChat("Me: " + msg);
-
-    // 👇 send structured message to server
     socket.emit("lobbyChatMessage", {
-        msg,
-        sender: "Me"
+        msg
     });
 
     input.value = "";
@@ -2237,13 +2221,10 @@ function sendMatchChat(){
 
 function showLobbyChat(){
 
-    document.getElementById(
-        "lobbyChatPanel"
-    ).style.display = "block";
+    document.getElementById("lobbyChatPanel").style.display = "block";
+    document.getElementById("matchChatPanel").style.display = "none";
 
-    document.getElementById(
-        "matchChatPanel"
-    ).style.display = "none";
+    document.getElementById("lobbyChatInput").value = "";
 }
 
 function showMatchChat(){
@@ -2268,11 +2249,7 @@ socket.on("lobbyChatMessage", data => {
     // POV formatting
     const { msg, sender } = data;
 
-    if (sender === "Me") {
-        addLobbyChat("Me: " + msg);
-    } else {
-        addLobbyChat(sender + ": " + msg);
-    }
+    addLobbyChat(`${sender}: ${msg}`);
 });
 
 socket.on(
@@ -2576,7 +2553,12 @@ document.addEventListener("keydown",e=>{
 
 	if (matchEnded) return;
 
-    const tag = document.activeElement.tagName;
+	if (document.activeElement &&
+		(document.activeElement.tagName === "INPUT" ||
+		document.activeElement.tagName === "TEXTAREA")) {
+		return;
+	}
+	
     if(tag === "INPUT") return;
 
     if(!running || matchEnded) return;
