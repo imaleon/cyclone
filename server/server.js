@@ -6,16 +6,14 @@ const app = express();
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    cors: {
-        origin: "*"
-    }
+    cors: { origin: "*" }
 });
 
 const PORT = process.env.PORT || 3000;
 
 /*
 ========================================
-GLOBAL ONLINE PLAYERS
+ONLINE PLAYERS
 ========================================
 */
 let onlinePlayers = 0;
@@ -26,11 +24,10 @@ function broadcastOnline() {
 
 /*
 ========================================
-ROOM DATA
+ROOMS
 ========================================
 */
 const rooms = {};
-const lobbyChat = [];
 
 function createRoomData(maxPlayers = 2) {
     return {
@@ -46,7 +43,6 @@ function cleanupRoom(room) {
     if (!rooms[room]) return;
 
     const clients = io.sockets.adapter.rooms.get(room);
-
     if (!clients || clients.size === 0) {
         delete rooms[room];
     }
@@ -57,17 +53,17 @@ function leaveRoom(socket, room) {
 
     socket.leave(room);
 
-    rooms[room].players =
-        rooms[room].players.filter(id => id !== socket.id);
+    const r = rooms[room];
 
-    delete rooms[room].ready[socket.id];
-    rooms[room].rematchVotes.delete(socket.id);
+    r.players = r.players.filter(id => id !== socket.id);
+    delete r.ready[socket.id];
+    r.rematchVotes.delete(socket.id);
 
     socket.to(room).emit("opponentLeft");
 
     io.to(room).emit("playerCount", {
-        players: rooms[room].players.length,
-        maxPlayers: rooms[room].maxPlayers
+        players: r.players.length,
+        maxPlayers: r.maxPlayers
     });
 
     cleanupRoom(room);
@@ -75,7 +71,7 @@ function leaveRoom(socket, room) {
 
 /*
 ========================================
-SOCKET
+SOCKET CONNECTION
 ========================================
 */
 io.on("connection", socket => {
@@ -92,8 +88,6 @@ io.on("connection", socket => {
     */
     socket.on("disconnect", () => {
 
-        console.log("DISCONNECTED:", socket.id);
-
         onlinePlayers--;
         broadcastOnline();
 
@@ -102,30 +96,26 @@ io.on("connection", socket => {
                 leaveRoom(socket, room);
             }
         }
+
+        console.log("DISCONNECTED:", socket.id);
     });
 
     /*
     ========================================
-    LOBBY CHAT
+    LOBBY CHAT (FIXED POV SYSTEM)
     ========================================
     */
-	socket.on("lobbyChatMessage", data => {
-	
-		// if server sends string (fallback)
-		if (typeof data === "string") {
-			addLobbyChat(data);
-			return;
-		}
-	
-		// POV formatting
-		const { msg, sender } = data;
-	
-		if (sender === "Me") {
-			addLobbyChat("Me: " + msg);
-		} else {
-			addLobbyChat(sender + ": " + msg);
-		}
-	});
+    socket.on("lobbyChatMessage", data => {
+
+        const msg = typeof data === "string" ? data : data.msg;
+
+        if (!msg) return;
+
+        io.emit("lobbyChatMessage", {
+            msg,
+            senderId: socket.id
+        });
+    });
 
     /*
     ========================================
@@ -195,8 +185,7 @@ io.on("connection", socket => {
         for (const room in rooms) {
             const r = rooms[room];
 
-            if (
-                !r.started &&
+            if (!r.started &&
                 r.maxPlayers === maxPlayers &&
                 r.players.length < r.maxPlayers
             ) {
@@ -206,20 +195,14 @@ io.on("connection", socket => {
         }
 
         if (!foundRoom) {
-            foundRoom = Math.random()
-                .toString(36)
-                .substring(2, 7)
-                .toUpperCase();
-
+            foundRoom = Math.random().toString(36).substring(2, 7).toUpperCase();
             rooms[foundRoom] = createRoomData(maxPlayers);
         }
 
         rooms[foundRoom].players.push(socket.id);
         socket.join(foundRoom);
 
-        socket.emit("matchFound", {
-            room: foundRoom
-        });
+        socket.emit("matchFound", { room: foundRoom });
 
         io.to(foundRoom).emit("playerCount", {
             players: rooms[foundRoom].players.length,
@@ -246,10 +229,7 @@ io.on("connection", socket => {
             maxPlayers: rooms[room].maxPlayers
         });
 
-        if (
-            readyCount >= rooms[room].players.length &&
-            rooms[room].players.length >= 2
-        ) {
+        if (readyCount >= rooms[room].players.length && rooms[room].players.length >= 2) {
             rooms[room].started = true;
             io.to(room).emit("startMatch");
         }
@@ -272,10 +252,10 @@ io.on("connection", socket => {
     });
 
     socket.on("matchChatMessage", data => {
-        socket.to(data.room).emit(
-            "matchChatMessage",
-            `Player: ${data.msg}`
-        );
+        socket.to(data.room).emit("matchChatMessage", {
+            msg: data.msg,
+            senderId: socket.id
+        });
     });
 
     /*
@@ -295,7 +275,7 @@ io.on("connection", socket => {
 
     /*
     ========================================
-    REMATCH SYSTEM
+    REMATCH
     ========================================
     */
     socket.on("rematchRequest", ({ room }) => {
@@ -348,8 +328,8 @@ io.on("connection", socket => {
     socket.on("leaveRoom", room => {
         leaveRoom(socket, room);
     });
-
 });
+
 /*
 ========================================
 START SERVER
