@@ -437,10 +437,67 @@ canvas {
 canvas {
     image-rendering: pixelated;
 }
+
+#loadingScreen{
+    position:fixed;
+    inset:0;
+    background:#030409;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:999999;
+}
+
+.loaderBox{
+    width:320px;
+    text-align:center;
+}
+
+.loaderBox h1{
+    color:#00f0ff;
+    text-shadow:0 0 20px #00f0ff;
+}
+
+.loadingBar{
+    width:100%;
+    height:18px;
+    background:#111;
+    border:2px solid #253066;
+    border-radius:12px;
+    overflow:hidden;
+    margin-top:20px;
+}
+
+#loadingFill{
+    width:0%;
+    height:100%;
+    background:linear-gradient(
+        90deg,
+        #00f0ff,
+        #008cff
+    );
+    transition:width .2s;
+}
 </style>
 </head>
 
 <body>
+
+<div id="loadingScreen">
+    <div class="loaderBox">
+
+        <h1>TETRA CLASH ONLINE</h1>
+
+        <div id="loadingText">
+            LOADING...
+        </div>
+
+        <div class="loadingBar">
+            <div id="loadingFill"></div>
+        </div>
+
+    </div>
+</div>
 
 <div id="loginScreen" style="
     position:fixed;
@@ -3432,6 +3489,48 @@ holdCanvas.addEventListener("click", () => {
 });
 
 // showMenu();
+
+async function fakeLoad(){
+
+    const fill =
+        document.getElementById(
+            "loadingFill"
+        );
+
+    const text =
+        document.getElementById(
+            "loadingText"
+        );
+
+    const steps = [
+        "Loading assets...",
+        "Loading ranks...",
+        "Connecting server...",
+        "Preparing battlefield...",
+        "Ready!"
+    ];
+
+    for(let i=0;i<steps.length;i++){
+
+        text.innerText = steps[i];
+
+        fill.style.width =
+            ((i+1)/steps.length)*100 + "%";
+
+        await new Promise(r=>
+            setTimeout(r,500)
+        );
+    }
+
+    document.getElementById(
+        "loadingScreen"
+    ).style.display = "none";
+}
+
+window.addEventListener("load",()=>{
+
+    fakeLoad();
+});
 
 window.addEventListener("resize", scaleGame);
 window.addEventListener("load", scaleGame);
