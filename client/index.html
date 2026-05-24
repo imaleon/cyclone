@@ -489,7 +489,7 @@ canvas {
 
 <div id="menu">
 
-    <button onclick="startSolo()">
+    <button onclick="soundClick(); startSolo()">
         SOLO PLAY
     </button>
 	
@@ -499,11 +499,11 @@ canvas {
 		<option value="4">1 VS 3</option>
 	</select>
 	
-	<button onclick="readyUp()" id="readyBtn" style="display:none;">
+	<button onclick="soundClick(); readyUp()" id="readyBtn" style="display:none;">
 		READY
 	</button>
 
-    <button onclick="findMatch()">
+    <button onclick="soundClick(); findMatch()">
         FIND MATCH
     </button>
 
@@ -512,11 +512,11 @@ canvas {
         placeholder="ROOM CODE"
     />
 
-    <button onclick="createRoom()">
+    <button onclick="soundClick(); createRoom()">
         CREATE ROOM
     </button>
 
-    <button onclick="joinRoom()">
+    <button onclick="soundClick(); joinRoom()">
         JOIN ROOM
     </button>
 
@@ -553,7 +553,7 @@ canvas {
         <div class="chatInputRow">
             <input id="lobbyChatInput" placeholder="message..." />
 
-            <button onclick="sendLobbyChat()">
+            <button onclick="soundClick(); sendLobbyChat()">
                 SEND
             </button>
         </div>
@@ -729,7 +729,7 @@ canvas {
 				min-width:149px;
 			">
 		
-				<button onclick="backToMenu()">
+				<button onclick="soundClick(); backToMenu()">
 					MAIN MENU
 				</button>
 		
@@ -809,7 +809,7 @@ canvas {
 		">
 		
 			<button
-				onclick="rotate(true)"
+				onclick="soundClick(); rotate(true)"
 				style="
 					width:120px;
 					height:55px;
@@ -820,7 +820,7 @@ canvas {
 			</button>
 		
 			<button
-				onclick="hardDrop()"
+				onclick="soundClick(); hardDrop()"
 				style="
 					width:120px;
 					height:55px;
@@ -933,6 +933,112 @@ canvas {
 const SERVER_URL = "https://tetrisonline.onrender.com";
 
 const socket = io(SERVER_URL);
+
+// =====================
+// PURE CODE SOUND SYSTEM
+// =====================
+
+const audioCtx =
+    new (
+        window.AudioContext ||
+        window.webkitAudioContext
+    )();
+
+function beep(
+    freq = 440,
+    duration = 0.08,
+    type = "square",
+    volume = 0.03
+){
+
+    const osc =
+        audioCtx.createOscillator();
+
+    const gain =
+        audioCtx.createGain();
+
+    osc.type = type;
+
+    osc.frequency.value = freq;
+
+    gain.gain.value = volume;
+
+    osc.connect(gain);
+
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+
+    osc.stop(
+        audioCtx.currentTime + duration
+    );
+}
+
+// SOUND EFFECTS
+function soundMove(){
+
+    beep(220,0.03,"square",0.02);
+}
+
+function soundRotate(){
+
+    beep(520,0.05,"triangle",0.03);
+}
+
+function soundDrop(){
+
+    beep(120,0.08,"sawtooth",0.04);
+}
+
+function soundClear(){
+
+    beep(700,0.05,"square",0.03);
+
+    setTimeout(()=>{
+        beep(900,0.08,"square",0.03);
+    },50);
+}
+
+function soundHold(){
+
+    beep(300,0.04,"triangle",0.025);
+}
+
+function soundGarbage(){
+
+    beep(80,0.15,"sawtooth",0.05);
+}
+
+function soundGameOver(){
+
+    beep(300,0.15,"square",0.03);
+
+    setTimeout(()=>{
+        beep(220,0.2,"square",0.03);
+    },120);
+
+    setTimeout(()=>{
+        beep(140,0.3,"square",0.03);
+    },240);
+}
+
+function soundWin(){
+
+    beep(523,0.08,"triangle",0.03);
+
+    setTimeout(()=>{
+        beep(659,0.08,"triangle",0.03);
+    },80);
+
+    setTimeout(()=>{
+        beep(784,0.15,"triangle",0.03);
+    },160);
+}
+
+function soundClick(){
+
+    beep(450,0.03,"square",0.02);
+}
 
 let isLoggedIn = false;
 let username = "";
@@ -1047,6 +1153,40 @@ let messageTimer = 0;
 
 let combo = -1;
 let backToBack = false;
+
+let musicInterval;
+
+function startMusic(){
+
+    const notes = [
+        659,494,523,587,
+        523,494,440,440,
+        523,659,587,523,
+        494,523,587,659
+    ];
+
+    let i = 0;
+
+    clearInterval(musicInterval);
+
+    musicInterval = setInterval(()=>{
+
+        beep(
+            notes[i % notes.length],
+            0.12,
+            "square",
+            0.02
+        );
+
+        i++;
+
+    },180);
+}
+
+function stopMusic(){
+
+    clearInterval(musicInterval);
+}
 
 function showMatchmakingPopup(){
     document.getElementById("matchmakingPopup").style.display = "flex";
@@ -1278,6 +1418,8 @@ function clearLines(){
 
     if(cleared){
 	
+		soundClear();
+	
 		combo++;
 
 		if(tspin){
@@ -1459,6 +1601,8 @@ function rotate(clockwise=true){
 
 			piece.matrix = rotated;
 			
+			soundRotate();
+			
 			piece.x += kick;
 			
 			if(touchingGround){
@@ -1510,6 +1654,8 @@ function hardDrop(){
 
     if(!piece) return;
 
+	soundDrop();
+
     while(!collide(0,1)){
 
         piece.y++;
@@ -1544,6 +1690,8 @@ function hardDrop(){
 function hold(){
 
     if(!canHold) return;
+	
+	soundHold();
 
     if(!holdPiece){
 
@@ -1988,6 +2136,8 @@ function showMenu(){
 
 function startGame(){
 
+	startMusic();
+
     // hard reset game state
     matchEnded = false;
 
@@ -2097,6 +2247,10 @@ function togglePause(){
 }
 
 function gameOver(){
+
+	stopMusic();
+
+	soundGameOver();
 
     running = false;
     cancelAnimationFrame(animationId);
@@ -2348,6 +2502,7 @@ function moveLeft(){
     if(!running || paused || matchEnded) return;
     if(!collide(-1,0)){
         piece.x--;
+		soundMove();
         lastMoveRotate = false;
         if(touchingGround) lockTimer = 0;
     }
@@ -2357,6 +2512,7 @@ function moveRight(){
     if(!running || paused || matchEnded) return;
     if(!collide(1,0)){
         piece.x++;
+		soundMove();
         lastMoveRotate = false;
         if(touchingGround) lockTimer = 0;
     }
@@ -2870,10 +3026,14 @@ socket.on("enemyBoard",data=>{
 
 socket.on("receiveGarbage",amount=>{
 
+	soundGarbage();
+
     addGarbage(amount);
 });
 
 socket.on("win", () => {
+
+	soundWin();
 
     matchEnded = true;
     running = false;
