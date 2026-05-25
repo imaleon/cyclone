@@ -481,27 +481,25 @@ socket.on("matchForceClosed", () => {
     showMenu();
 });
 
-socket.on("playerDisconnected",id=>{
+socket.on("playerDisconnected", id => {
 
-    if(opponents[id]){
+    if (opponents[id]) {
 
         opponents[id].box.remove();
 
-	if(opponents[id]){
-	
-		opponents[id].box.dataset.used = "";
-	
-		opponents[id]
-			.box
-			.querySelector(".enemyName")
-			.innerText = "WAITING...";
-	
-		const ctx = opponents[id].ctx;
-	
-		ctx.clearRect(0,0,120,240);
-	
-		delete opponents[id];
-	}
+        opponents[id].box.dataset.used = "";
+
+        opponents[id]
+            .box
+            .querySelector(".enemyName")
+            .innerText = "WAITING...";
+
+        const ctx = opponents[id].ctx;
+
+        ctx.clearRect(0, 0, 120, 240);
+
+        delete opponents[id];
+    }
 });
 
 socket.on("playerEliminated",id=>{
