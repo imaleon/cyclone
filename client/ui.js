@@ -119,6 +119,9 @@ function hideMatchmakingPopup(){
 }
 
 function showMatchEndPanel(){
+	
+	stopMusic();
+	
     setMatchChatEnabled(false);
     rematchSent = false;
 

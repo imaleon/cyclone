@@ -996,7 +996,7 @@ function startGame(){
     boardDirty = true;
 
     // reset opponents
-    opponents = {};
+    resetOpponentBoards();
 
     gameStarted = true;
 
@@ -1126,6 +1126,8 @@ function togglePause(){
 function continueSoloGame(){
 
     soundClick();
+	
+	startMusic();
 
     paused = false;
 
@@ -1255,6 +1257,8 @@ function startSolo(){
 }
 
 function backToMenu(){
+	
+	stopMusic();
 
     if(multiplayer){
         alert("Use ESC to surrender in multiplayer.");
@@ -1277,7 +1281,7 @@ function backToMenu(){
 
     resetBoard();
 
-    opponents = {};
+    resetOpponentBoards();
 
     hideMatchEndPanel();
 
@@ -1346,6 +1350,37 @@ function moveRight(){
         lastMoveRotate = false;
         if(touchingGround) lockTimer = 0;
     }
+}
+
+function resetOpponentBoards(){
+
+    const slots =
+        document.querySelectorAll(".enemyBox");
+
+    slots.forEach(slot => {
+
+        slot.dataset.used = "";
+
+        const name =
+            slot.querySelector(".enemyName");
+
+        name.innerText = "WAITING...";
+
+        const canvas =
+            slot.querySelector("canvas");
+
+        const ctx =
+            canvas.getContext("2d");
+
+        ctx.clearRect(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+        );
+    });
+
+    opponents = {};
 }
 
 function sendLobbyChat(){
