@@ -176,53 +176,12 @@
 			gap:10px;
 			align-items:stretch;
 		
-			margin-left:-70px;
+			margin-left:0px;
 		">
-		
-			<!-- RANK PANEL -->
-			<div class="card" style="
-				width:110px;
-				display:flex;
-				flex-direction:column;
-				justify-content:center;
-				align-items:center;
-			">
-		
-				<div class="label">
-					RANK
-				</div>
-		
-				<div
-					id="rank"
-					class="value rank-bronze"
-					style="
-						font-size:1rem;
-						text-align:center;
-					"
-				>
-					BRONZE
-				</div>
-		
-				<div
-					class="label"
-					style="margin-top:10px;"
-				>
-					RP
-				</div>
-		
-				<div
-					id="rankPoints"
-					class="value"
-					style="font-size:1rem;"
-				>
-					0
-				</div>
-		
-			</div>
 		
 			<!-- HOLD PANEL -->
 			<div class="card" style="
-				width:100px;
+				width:350px;
 				display:flex;
 				flex-direction:column;
 				align-items:center;
@@ -264,7 +223,7 @@
             <div id="level" class="value">1</div>
         </div>
 		
-		<div style="display:flex; gap:10px; align-items:stretch; margin-left:-269px;">
+		<div id="mobileControls" style="display:none; display:flex; gap:10px; align-items:stretch; margin-left:-269px;">
 		
 			<!-- LEFT/RIGHT BUTTON BOX -->
 			<div class="card" style="
@@ -316,8 +275,8 @@
 				min-width:149px;
 			">
 		
-				<button onclick="soundClick(); backToMenu()">
-					MAIN MENU
+				<button onclick="soundClick(); togglePause()">
+					MENU
 				</button>
 		
 			</div>
@@ -329,30 +288,54 @@
 
     <div class="panel">
 
-		<div style="display:flex; gap:10px; align-items:stretch;">
+		<div style="display:flex; gap:10px; align-items:stretch; width:100%;">
 		
 			<div class="card" style="flex:1;">
 				<div class="label">NEXT</div>
 				<canvas id="next" width="80" height="80" class="small"></canvas>
 			</div>
 		
-		<div class="card" style="width:200px;">
-			<div class="label">MOBILE</div>
-		
-			<div style="
-				font-size:.7rem;
-				line-height:1;
-				width:180px;
-				margin:0 auto;
-				text-align:center;
+			<!-- RANK PANEL -->
+			<div class="card" style="
+				flex:0 0 175px;
+				width:175px;
+				display:flex;
+				flex-direction:column;
+				justify-content:center;
+				align-items:center;
 			">
-				TAP SCREEN = ROTATE REVERSE<br>
-				TAP HOLD BOX =HOLD<br>
-				SWIPE LEFT/RIGHT = MOVE<br>
-				SWIPE DOWN = SOFT DROP<br>
-				LONG SWIPE DOWN = HARD DROP
+		
+				<div class="label">
+					RANK
+				</div>
+		
+				<div
+					id="rank"
+					class="value rank-bronze"
+					style="
+						font-size:1rem;
+						text-align:center;
+					"
+				>
+					BRONZE
+				</div>
+		
+				<div
+					class="label"
+					style="margin-top:10px;"
+				>
+					RP
+				</div>
+		
+				<div
+					id="rankPoints"
+					class="value"
+					style="font-size:1rem;"
+				>
+					0
+				</div>
+		
 			</div>
-		</div>
 		
 		</div>
 
@@ -362,29 +345,7 @@
 			<div id="opponentsContainer"></div>
 		</div>
 
-	<div style="display:flex; gap:10px; align-items:stretch;">
-	
-		<div class="card" style="width:150px;">
-			<div class="label">CONTROLS</div>
-	
-			<div
-				style="
-					font-size:.5rem;
-					line-height:1;
-					width:130px;
-				"
-			>
-				← → MOVE<br>
-				↓ SOFT DROP<br>
-				↑ ROTATE<br>
-				Z ROTATE REVERSE<br>
-				P PAUSE(Solo)<br>
-				R RESTART(Solo)<br>
-				ESC SURRENDER(PvP)<br>
-				SPACE HARD DROP<br>
-				C/SHIFT HOLD
-			</div>
-		</div>
+	<div id="mobileControls" style="display:none; display:flex; gap:10px; align-items:stretch;">
 	
 		<div class="card" style="
 			width:190px;
@@ -514,6 +475,112 @@
 		</div>
 	</div>
 
+</div>
+
+<div id="soloPauseMenu" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.75);
+    z-index:20000;
+    justify-content:center;
+    align-items:center;
+">
+    <div style="
+        background:#0d1025;
+        border:2px solid #1a224d;
+        padding:25px;
+        border-radius:12px;
+        width:260px;
+        text-align:center;
+    ">
+        <h2 style="color:#00f0ff;">
+            PAUSED
+        </h2>
+
+        <div style="
+            display:flex;
+            flex-direction:column;
+            gap:10px;
+            margin-top:15px;
+        ">
+
+            <button onclick="continueSoloGame()">
+                CONTINUE
+            </button>
+
+            <button onclick="restartSoloGame()">
+                RESTART
+            </button>
+
+            <button onclick="openSettings()">
+                OPTIONS / SETTINGS
+            </button>
+			
+			<button onclick="toggleMobileControls()">
+				MOBILE CONTROLS
+			</button>
+
+            <button onclick="quitSoloGame()">
+                QUIT / EXIT
+            </button>
+
+        </div>
+    </div>
+</div>
+
+<div id="settingsPopup" style="
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.75);
+    z-index:20000;
+    justify-content:center;
+    align-items:center;
+">
+    <div style="
+        background:#0d1025;
+        border:2px solid #1a224d;
+        padding:25px;
+        border-radius:12px;
+        width:320px;
+        text-align:center;
+        color:#8090c9;
+        font-size:.8rem;
+        line-height:1.4;
+    ">
+
+        <h2 style="color:#00f0ff;">
+            CONTROLS
+        </h2>
+
+        <div style="margin-top:15px; text-align:left;">
+
+            <b>PC CONTROLS</b><br>
+            ← → MOVE<br>
+            ↓ SOFT DROP<br>
+            ↑ ROTATE<br>
+            Z ROTATE REVERSE<br>
+            SPACE HARD DROP<br>
+            C / SHIFT HOLD<br>
+            ESC MENU<br>
+
+            <br>
+
+            <b>MOBILE CONTROLS</b><br>
+            TAP = ROTATE<br>
+            TAP HOLD BOX = HOLD<br>
+            SWIPE LEFT/RIGHT = MOVE<br>
+            SWIPE DOWN = SOFT DROP<br>
+            LONG SWIPE DOWN = HARD DROP<br>
+
+        </div>
+
+        <button style="margin-top:15px;" onclick="closeSettings()">
+            CLOSE
+        </button>
+
+    </div>
 </div>
 
 <script src="audio.js"></script>

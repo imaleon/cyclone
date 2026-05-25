@@ -44,6 +44,7 @@ let readyPlayers = 0;
 let isReady = false;
 
 let paused = false;
+let soloPauseMenuOpen = false;
 let running = false;
 let animationId = null;
 
@@ -830,27 +831,6 @@ function draw(){
 	
 		messageTimer--;
 	}
-
-	if (paused) {
-	
-		ctx.fillStyle = "rgba(0,0,0,.7)";
-		ctx.fillRect(0, 0, canvas.width, canvas.height);
-	
-		ctx.save();
-		ctx.textAlign = "center";
-		ctx.textBaseline = "middle";
-	
-		ctx.fillStyle = "#00f0ff";
-		ctx.font = "bold 40px Consolas";
-	
-		ctx.fillText(
-			"PAUSED",
-			canvas.width / 2,
-			canvas.height / 2
-		);
-	
-		ctx.restore();
-	}
 }
 
 function drawMini(ctx2,type){
@@ -1071,7 +1051,91 @@ function togglePause(){
 
     if(!running) return;
 
+    if(multiplayer){
+
+        surrender();
+        return;
+    }
+
     paused = !paused;
+
+    soloPauseMenuOpen = paused;
+
+    document.getElementById(
+        "soloPauseMenu"
+    ).style.display =
+        paused ? "flex" : "none";
+
+    // ✅ STOP / RESUME MUSIC
+    if(paused){
+
+        stopMusic();
+
+    }else{
+
+        startMusic();
+    }
+}
+
+function continueSoloGame(){
+
+    soundClick();
+
+    paused = false;
+
+    soloPauseMenuOpen = false;
+
+    document.getElementById(
+        "soloPauseMenu"
+    ).style.display = "none";
+}
+
+function restartSoloGame(){
+
+    soundClick();
+
+    paused = false;
+
+    soloPauseMenuOpen = false;
+
+    document.getElementById(
+        "soloPauseMenu"
+    ).style.display = "none";
+
+    restartGame();
+}
+
+function quitSoloGame(){
+
+    soundClick();
+
+    paused = false;
+
+    soloPauseMenuOpen = false;
+
+    document.getElementById(
+        "soloPauseMenu"
+    ).style.display = "none";
+
+    backToMenu();
+}
+
+function openSettings(){
+
+    soundClick();
+
+    document.getElementById(
+        "settingsPopup"
+    ).style.display = "flex";
+}
+
+function closeSettings(){
+
+    soundClick();
+
+    document.getElementById(
+        "settingsPopup"
+    ).style.display = "none";
 }
 
 function gameOver(){
@@ -1287,35 +1351,20 @@ document.addEventListener("keydown",e=>{
 
     if(!running) return;
 
-    if(e.key==="p" || e.key==="P"){
-
-        if(!multiplayer){
-
-            togglePause();
-        }
-
-        return;
-    }
-
-    if(e.key==="r" || e.key==="R"){
-
-        if(!multiplayer){
-
-            restartGame();
-        }
-
-        return;
-    }
-
-    if(e.key==="Escape"){
-
-        if(multiplayer){
-
-            surrender();
-        }
-
-        return;
-    }
+	if(e.key === "Escape"){
+	
+		const settings =
+			document.getElementById("settingsPopup");
+	
+		if(settings.style.display === "flex"){
+	
+			closeSettings();
+			return;
+		}
+	
+		togglePause();
+		return;
+	}
 
     if(paused) return;
 
