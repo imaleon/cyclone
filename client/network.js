@@ -1,6 +1,6 @@
 const SERVER_URL = "https://tetrisonline.onrender.com";
 const socket = io(SERVER_URL, {
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
     reconnection: true,
     reconnectionAttempts: 10,
     reconnectionDelay: 1000,

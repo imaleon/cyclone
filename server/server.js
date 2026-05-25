@@ -11,9 +11,10 @@ app.get("/", (req, res) => {
 
 const io = new Server(server, {
     cors: {
-        origin: "*"
+        origin: "*",
+        methods: ["GET", "POST"]
     },
-    transports: ["websocket"]
+    transports: ["websocket", "polling"]
 });
 
 const PORT = process.env.PORT || 3000;
@@ -352,8 +353,6 @@ io.on("connection", (socket) => {
 
     /* DISCONNECT */
 	socket.on("disconnect", () => {
-		
-		clearTimeout(matchmakingTimeout);
 	
 		onlineCount--;
 		io.emit("onlineCount", onlineCount);
