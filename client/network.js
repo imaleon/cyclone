@@ -1,4 +1,4 @@
-const SERVER_URL = "http://localhost:3000";
+const SERVER_URL = "https://tetrisonline.onrender.com";
 const socket = io(SERVER_URL);
 
 function findMatch() {
