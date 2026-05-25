@@ -1077,16 +1077,33 @@ function surrender(){
     showMenu();
 }
 
+let multiplayerMenuOpen = false;
+
 function togglePause(){
 
     if(!running) return;
 
+    // =========================
+    // MULTIPLAYER ESC MENU
+    // =========================
     if(multiplayer){
 
-        surrender();
+        multiplayerMenuOpen =
+            !multiplayerMenuOpen;
+
+        document.getElementById(
+            "multiplayerPauseMenu"
+        ).style.display =
+            multiplayerMenuOpen
+                ? "flex"
+                : "none";
+
         return;
     }
 
+    // =========================
+    // SOLO PAUSE
+    // =========================
     paused = !paused;
 
     soloPauseMenuOpen = paused;
@@ -1096,7 +1113,6 @@ function togglePause(){
     ).style.display =
         paused ? "flex" : "none";
 
-    // ✅ STOP / RESUME MUSIC
     if(paused){
 
         stopMusic();
@@ -1118,6 +1134,33 @@ function continueSoloGame(){
     document.getElementById(
         "soloPauseMenu"
     ).style.display = "none";
+}
+
+function continueMultiplayerGame(){
+
+    soundClick();
+
+    multiplayerMenuOpen = false;
+
+    document.getElementById(
+        "multiplayerPauseMenu"
+    ).style.display = "none";
+}
+
+function surrenderMatch(){
+
+    soundClick();
+
+    if(!confirm("SURRENDER MATCH?"))
+        return;
+
+    multiplayerMenuOpen = false;
+
+    document.getElementById(
+        "multiplayerPauseMenu"
+    ).style.display = "none";
+
+    surrender();
 }
 
 function restartSoloGame(){
@@ -1384,19 +1427,40 @@ document.addEventListener("keydown",e=>{
 	if(e.key === "Escape"){
 	
 		const settings =
-			document.getElementById("settingsPopup");
+			document.getElementById(
+				"settingsPopup"
+			);
 	
+		// CLOSE SETTINGS FIRST
 		if(settings.style.display === "flex"){
 	
 			closeSettings();
 			return;
 		}
 	
+		// MULTIPLAYER MENU
+		if(multiplayer){
+	
+			if(multiplayerMenuOpen){
+	
+				continueMultiplayerGame();
+	
+			}else{
+	
+				togglePause();
+			}
+	
+			return;
+		}
+	
+		// SOLO MENU
 		togglePause();
+	
 		return;
 	}
 
-    if(paused) return;
+    if(paused || multiplayerMenuOpen)
+		return;
 
     switch(e.key){
 
