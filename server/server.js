@@ -5,10 +5,15 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 
+app.get("/", (req, res) => {
+    res.send("Server online");
+});
+
 const io = new Server(server, {
     cors: {
         origin: "*"
-    }
+    },
+    transports: ["websocket"]
 });
 
 const PORT = process.env.PORT || 3000;
@@ -19,7 +24,7 @@ const PORT = process.env.PORT || 3000;
 
 let onlineCount = 0;
 
-const matchmakingQueue = [];
+let matchmakingQueue = [];
 
 const rooms = {}; 
 // roomId -> { players: [], ready: Set, maxPlayers }
@@ -181,7 +186,26 @@ io.on("connection", (socket) => {
     /* FIND MATCH (simple queue system) */
 	socket.on("findMatch", ({ maxPlayers, rankPoints }) => {
 	
-		// 1. try find opponent in queue
+		// STEP 6:
+		// REMOVE DEAD SOCKETS FROM QUEUE
+		for (let i = matchmakingQueue.length - 1; i >= 0; i--) {
+	
+			if (!matchmakingQueue[i].socket.connected) {
+				matchmakingQueue.splice(i, 1);
+			}
+		}
+	
+		// STEP 5:
+		// PREVENT DUPLICATE QUEUE ENTRIES
+		const alreadyQueued = matchmakingQueue.find(
+			p => p.socket.id === socket.id
+		);
+	
+		if (alreadyQueued) {
+			return;
+		}
+	
+		// TRY FIND MATCH
 		let index = matchmakingQueue.findIndex(p =>
 			p.maxPlayers === maxPlayers &&
 			Math.abs((p.rankPoints || 0) - rankPoints) <= 300
@@ -189,7 +213,8 @@ io.on("connection", (socket) => {
 	
 		if (index !== -1) {
 	
-			const opponent = matchmakingQueue.splice(index, 1)[0];
+			const opponent =
+				matchmakingQueue.splice(index, 1)[0];
 	
 			const room = Math.random()
 				.toString(36)
@@ -211,7 +236,7 @@ io.on("connection", (socket) => {
 			return;
 		}
 	
-		// 2. no match → add to queue
+		// ADD TO QUEUE
 		matchmakingQueue.push({
 			socket,
 			maxPlayers,
@@ -301,19 +326,15 @@ io.on("connection", (socket) => {
 
     /* DISCONNECT */
 	socket.on("disconnect", () => {
+	
 		onlineCount--;
 		io.emit("onlineCount", onlineCount);
 	
-		// ✅ REMOVE FROM MATCHMAKING QUEUE
-		const qIndex = matchmakingQueue.findIndex(
-			p => p.socket.id === socket.id
-		);
+		matchmakingQueue =
+			matchmakingQueue.filter(
+				p => p.socket.id !== socket.id
+			);
 	
-		if (qIndex !== -1) {
-			matchmakingQueue.splice(qIndex, 1);
-		}
-	
-		// existing cleanup
 		removePlayerFromRoom(socket);
 	});
 });

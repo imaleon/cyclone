@@ -1,5 +1,21 @@
 const SERVER_URL = "https://tetrisonline.onrender.com";
-const socket = io(SERVER_URL);
+const socket = io(SERVER_URL, {
+    transports: ["websocket"],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+    timeout: 20000
+});
+
+socket.on("connect", () => {
+    console.log("Connected to server");
+    document.getElementById("status").innerText = "ONLINE";
+});
+
+socket.on("connect_error", () => {
+    document.getElementById("status").innerText =
+        "SERVER WAKING UP...";
+});
 
 function findMatch() {
 
