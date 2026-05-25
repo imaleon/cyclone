@@ -225,8 +225,24 @@
 		
 		<div style="display:flex; gap:10px; align-items:stretch; margin-left:-269px;">
 		
-			<!-- LEFT/RIGHT BUTTON BOX -->
+			<!-- MENU BOX -->
 			<div class="card" style="
+				display:flex;
+				flex-direction:column;
+				gap:10px;
+				justify-content:center;
+				align-items:center;
+				min-width:149px;
+			">
+		
+				<button onclick="soundClick(); togglePause()">
+					MENU
+				</button>
+		
+			</div>
+		
+			<!-- LEFT/RIGHT BUTTON BOX -->
+			<div id="moveControls" class="card" style="
 				width:260px;
 				display:flex;
 				flex-direction:column;
@@ -264,23 +280,7 @@
 				</div>
 		
 			</div>
-		
-			<!-- MENU BOX -->
-			<div class="card" style="
-				display:flex;
-				flex-direction:column;
-				gap:10px;
-				justify-content:center;
-				align-items:center;
-				min-width:149px;
-			">
-		
-				<button onclick="soundClick(); togglePause()">
-					MENU
-				</button>
-		
-			</div>
-		
+			
 		</div>
     </div>
 
@@ -347,7 +347,7 @@
 
 	<div style="display:flex; gap:10px; align-items:stretch;">
 	
-		<div class="card" style="
+		<div id="actionControls" class="card" style="
 			width:190px;
 			display:flex;
 			flex-direction:row;
@@ -516,6 +516,10 @@
             <button onclick="openSettings()">
                 OPTIONS / SETTINGS
             </button>
+			
+			<button onclick="toggleMobileControls()">
+				TOGGLE CONTROLS
+			</button>
 
             <button onclick="quitSoloGame()">
                 QUIT / EXIT

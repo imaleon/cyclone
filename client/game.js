@@ -24,6 +24,37 @@ const opponentsContainer =
     document.getElementById(
         "opponentsContainer"
     );
+	
+function createOpponentSlots(){
+
+    for(let i = 0; i < 3; i++){
+
+        const box =
+            document.createElement("div");
+
+        box.className = "enemyBox";
+
+        const name =
+            document.createElement("div");
+
+        name.className = "enemyName";
+
+        name.innerText = "WAITING...";
+
+        const canvas =
+            document.createElement("canvas");
+
+        canvas.width = 120;
+        canvas.height = 240;
+
+        canvas.className = "enemyCanvas";
+
+        box.appendChild(name);
+        box.appendChild(canvas);
+
+        opponentsContainer.appendChild(box);
+    }
+}
 
 const nextCtx =
     document.getElementById("next")
@@ -966,7 +997,6 @@ function startGame(){
 
     // reset opponents
     opponents = {};
-    opponentsContainer.innerHTML = "";
 
     gameStarted = true;
 
@@ -1205,7 +1235,6 @@ function backToMenu(){
     resetBoard();
 
     opponents = {};
-    opponentsContainer.innerHTML = "";
 
     hideMatchEndPanel();
 
@@ -1221,37 +1250,38 @@ function createOpponentBoard(id){
 
     if(opponents[id]) return;
 
-    const box =
-        document.createElement("div");
+    const slots =
+        document.querySelectorAll(".enemyBox");
 
-    box.className = "enemyBox";
+    let emptySlot = null;
+
+    for(const slot of slots){
+
+        if(!slot.dataset.used){
+
+            emptySlot = slot;
+            break;
+        }
+    }
+
+    if(!emptySlot) return;
+
+    emptySlot.dataset.used = "true";
 
     const name =
-        document.createElement("div");
+        emptySlot.querySelector(".enemyName");
 
-    name.className = "enemyName";
-
-    name.innerText =
-        "PLAYER";
+    name.innerText = "PLAYER";
 
     const canvas =
-        document.createElement("canvas");
-
-    canvas.width = 120;
-    canvas.height = 240;
-
-    canvas.className = "enemyCanvas";
-
-    box.appendChild(name);
-    box.appendChild(canvas);
-
-    opponentsContainer.appendChild(box);
+        emptySlot.querySelector("canvas");
 
     opponents[id] = {
+
         canvas,
         ctx: canvas.getContext("2d"),
         grid:null,
-        box
+        box: emptySlot
     };
 }
 
@@ -1480,6 +1510,8 @@ async function fakeLoad(){
 window.addEventListener("load",()=>{
 
     fakeLoad();
+
+    createOpponentSlots();
 });
 
 window.addEventListener("resize", scaleGame);

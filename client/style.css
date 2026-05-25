@@ -88,6 +88,7 @@ input{
     display:none;
     gap:20px;
     align-items:flex-start;
+    flex-direction:row;
 }
 
 .panel{
@@ -230,13 +231,16 @@ canvas{
 }
 
 #opponentsContainer{
-    display:grid;
-    grid-template-columns:repeat(2,1fr);
+    display:flex;
+    flex-direction:row;
     gap:10px;
-    width:260px;
+
+    align-items:flex-start;
 }
 
 .enemyBox{
+    width:auto;
+
     background:#050814;
     border:2px solid var(--border);
     border-radius:10px;

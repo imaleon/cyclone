@@ -68,7 +68,6 @@ function showMenu(){
 	gameStarted = false;
 
     opponents = {};
-    opponentsContainer.innerHTML = "";
 
     document.getElementById("readyBtn").style.display = "none";
 
@@ -212,4 +211,36 @@ function addMatchChat(msg){
     requestAnimationFrame(() => {
         box.scrollTop = box.scrollHeight;
     });
+}
+
+function toggleMobileControls(){
+
+    const moveControls =
+        document.getElementById("moveControls");
+
+    const actionControls =
+        document.getElementById("actionControls");
+
+    if(moveControls.style.display === "none"){
+
+        moveControls.style.display = "flex";
+
+        actionControls.style.display = "flex";
+
+    } else {
+
+        moveControls.style.display = "none";
+
+        actionControls.style.display = "none";
+
+    }
+}
+
+if(window.innerWidth > 768){
+
+    document.getElementById("moveControls")
+        .style.display = "none";
+
+    document.getElementById("actionControls")
+        .style.display = "none";
 }

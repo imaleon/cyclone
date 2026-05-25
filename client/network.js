@@ -265,7 +265,6 @@ socket.on("rematchStart", () => {
 
     // clear opponent previews
     opponents = {};
-    opponentsContainer.innerHTML = "";
 
     // reset random bag
     bag = [];
@@ -470,7 +469,6 @@ socket.on("matchForceClosed", () => {
     gameStarted = false;
 
     opponents = {};
-    opponentsContainer.innerHTML = "";
 
     hideMatchEndPanel();
 
@@ -489,8 +487,21 @@ socket.on("playerDisconnected",id=>{
 
         opponents[id].box.remove();
 
-        delete opponents[id];
-    }
+	if(opponents[id]){
+	
+		opponents[id].box.dataset.used = "";
+	
+		opponents[id]
+			.box
+			.querySelector(".enemyName")
+			.innerText = "WAITING...";
+	
+		const ctx = opponents[id].ctx;
+	
+		ctx.clearRect(0,0,120,240);
+	
+		delete opponents[id];
+	}
 });
 
 socket.on("playerEliminated",id=>{
