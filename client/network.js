@@ -30,25 +30,54 @@ function findMatch() {
         document.getElementById("matchType").value
     );
 
-    document.getElementById("status").innerText = "SEARCHING...";
+    document.getElementById("status").innerText =
+        "SEARCHING SAME RANK...";
 
-    showMatchmakingPopup(); // ✅ SHOW POPUP
+    showMatchmakingPopup();
 
+    // FIRST SEARCH = SAME RANK ONLY
     socket.emit("findMatch", {
         maxPlayers,
         autoJoin: true,
         rank: playerRank,
-        rankPoints
+        rankPoints,
+        anyRank: false
     });
 
     clearTimeout(matchmakingTimeout);
 
+    // AFTER 5 SECONDS -> EXPAND SEARCH
     matchmakingTimeout = setTimeout(() => {
 
+        if (!matchmaking) return;
+
+        document.getElementById("status").innerText =
+            "EXPANDING SEARCH...";
+
+        document.getElementById(
+            "matchmakingStatus"
+        ).innerText =
+            "No equal-rank players found.\nSearching all ranks...";
+
+        // SECOND SEARCH = ANY RANK
+        socket.emit("findMatch", {
+            maxPlayers,
+            autoJoin: true,
+            rank: playerRank,
+            rankPoints,
+            anyRank: true
+        });
+
+    }, 5000);
+
+    // FULL FAIL TIMEOUT
+    setTimeout(() => {
+
         if (matchmaking) {
+
             matchmaking = false;
 
-            hideMatchmakingPopup(); // ❌ hide popup
+            hideMatchmakingPopup();
 
             document.getElementById("status").innerText =
                 "MATCHMAKING FAILED";
@@ -57,6 +86,20 @@ function findMatch() {
         }
 
     }, 15000);
+}
+
+function cancelMatchmaking() {
+
+    matchmaking = false;
+
+    clearTimeout(matchmakingTimeout);
+
+    hideMatchmakingPopup();
+
+    document.getElementById("status").innerText =
+        "MATCHMAKING CANCELED";
+
+    socket.emit("leaveQueue");
 }
 
 function createRoom(){

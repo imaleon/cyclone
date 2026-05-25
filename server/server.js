@@ -184,33 +184,58 @@ io.on("connection", (socket) => {
     }
 
     /* FIND MATCH (simple queue system) */
-	socket.on("findMatch", ({ maxPlayers, rankPoints }) => {
+	socket.on("findMatch", ({
+		maxPlayers,
+		rankPoints,
+		anyRank = false
+	}) => {
 	
-		// STEP 6:
-		// REMOVE DEAD SOCKETS FROM QUEUE
-		for (let i = matchmakingQueue.length - 1; i >= 0; i--) {
+		// REMOVE DEAD SOCKETS
+		matchmakingQueue =
+			matchmakingQueue.filter(
+				p => p.socket.connected
+			);
 	
-			if (!matchmakingQueue[i].socket.connected) {
-				matchmakingQueue.splice(i, 1);
-			}
-		}
-	
-		// STEP 5:
-		// PREVENT DUPLICATE QUEUE ENTRIES
-		const alreadyQueued = matchmakingQueue.find(
-			p => p.socket.id === socket.id
-		);
+		// PREVENT DUPLICATES
+		const alreadyQueued =
+			matchmakingQueue.find(
+				p => p.socket.id === socket.id
+			);
 	
 		if (alreadyQueued) {
+	
+			// UPDATE SEARCH MODE
+			alreadyQueued.anyRank = anyRank;
+	
 			return;
 		}
 	
-		// TRY FIND MATCH
-		let index = matchmakingQueue.findIndex(p =>
-			p.maxPlayers === maxPlayers &&
-			Math.abs((p.rankPoints || 0) - rankPoints) <= 300
-		);
+		let index = -1;
 	
+		// SAME RANK SEARCH
+		if (!anyRank) {
+	
+			index = matchmakingQueue.findIndex(p =>
+	
+				p.maxPlayers === maxPlayers &&
+	
+				!p.anyRank &&
+	
+				Math.abs(
+					(p.rankPoints || 0) - rankPoints
+				) <= 300
+			);
+	
+		} else {
+	
+			// ANY RANK FALLBACK
+			index = matchmakingQueue.findIndex(p =>
+	
+				p.maxPlayers === maxPlayers
+			);
+		}
+	
+		// MATCH FOUND
 		if (index !== -1) {
 	
 			const opponent =
@@ -240,7 +265,8 @@ io.on("connection", (socket) => {
 		matchmakingQueue.push({
 			socket,
 			maxPlayers,
-			rankPoints
+			rankPoints,
+			anyRank
 		});
 	});
 
@@ -326,6 +352,8 @@ io.on("connection", (socket) => {
 
     /* DISCONNECT */
 	socket.on("disconnect", () => {
+		
+		clearTimeout(matchmakingTimeout);
 	
 		onlineCount--;
 		io.emit("onlineCount", onlineCount);
@@ -337,6 +365,14 @@ io.on("connection", (socket) => {
 	
 		removePlayerFromRoom(socket);
 	});
+	
+	socket.on("leaveQueue", () => {
+	
+		matchmakingQueue =
+			matchmakingQueue.filter(
+				p => p.socket.id !== socket.id
+			);
+	});	
 });
 
 /* -----------------------------
