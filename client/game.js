@@ -123,7 +123,8 @@ let rankPoints =
         localStorage.getItem("tetris_rank_points")
     ) || 0;
 
-let playerRank = "BRONZE";
+let playerRank =
+	calculateRank(rankPoints);
 
 let unlockedRanks =
     JSON.parse(
@@ -134,6 +135,8 @@ let unlockedRanks =
 
 let currentSkin =
     RANK_SKINS[playerRank];
+
+applyRankSkin();
 
 let highScore =
     parseInt(

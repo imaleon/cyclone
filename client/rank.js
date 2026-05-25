@@ -71,8 +71,8 @@ function calculateRank(points){
     if(points >= 900) return "PLATINUM";
     if(points >= 500) return "GOLD";
     if(points >= 250) return "SILVER";
-	if(points >= 249) return "BRONZE";
 
+    return "BRONZE";
 }
 
 function addRankPoints(amount){
