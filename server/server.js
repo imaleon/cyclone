@@ -333,11 +333,22 @@ io.on("connection", (socket) => {
 		}
 	});
 
-    socket.on("cancelRematch", ({ room }) => {
-        if (rematchVotes[room]) {
-            rematchVotes[room].delete(socket.id);
-        }
-    });
+	socket.on("cancelRematch", ({ room }) => {
+	
+		if (!rematchVotes[room]) return;
+	
+		rematchVotes[room].delete(socket.id);
+	
+		io.to(room).emit("rematchCanceled", {
+			by: socket.id,
+			ready: rematchVotes[room].size,
+			total: rooms[room]?.players.length || 0
+		});
+	
+		if (rematchVotes[room].size <= 0) {
+			delete rematchVotes[room];
+		}
+	});
 
     /* FORCE END */
     socket.on("forceEnd", ({ room }) => {

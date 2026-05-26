@@ -504,6 +504,27 @@ socket.on("matchEnded", () => {
     showMatchEndPanel();
 });
 
+socket.on("rematchCanceled", data => {
+
+    waitingRematch = false;
+    rematchSent = false;
+
+    // hide popup
+    document.getElementById("rematchPopup").style.display = "none";
+
+    // re-enable buttons
+    const panel = document.getElementById("matchEndPanel");
+
+    panel.querySelectorAll("button").forEach(btn => {
+        btn.disabled = false;
+    });
+
+    document.getElementById("status").innerText =
+        "REMATCH CANCELED";
+
+    showMatchEndPanel();
+});
+
 socket.on("rematchPlayerJoined", data => {
 
 	waitingRematch = true;
