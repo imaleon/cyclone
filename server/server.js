@@ -61,58 +61,63 @@ function removePlayerFromRoom(socket) {
     const room = rooms[roomId];
     if (!room) return;
 
-    room.players =
-        room.players.filter(p => p !== socket.id);
-
+    room.players = room.players.filter(p => p !== socket.id);
     room.ready.delete(socket.id);
 
     delete playerRoom[socket.id];
 
     socket.leave(roomId);
 
-	// REMOVE REMATCH VOTE
-	if (rematchVotes[roomId]) {
-	
-		rematchVotes[roomId].delete(socket.id);
-	
-		io.to(roomId).emit("rematchCanceled", {
-			by: socket.id,
-			ready: rematchVotes[roomId].size,
-			total: room.players.length
-		});
-	}
+    const votes = rematchVotes[roomId];
+
+    // REMOVE REMATCH VOTE
+    if (votes) {
+        votes.delete(socket.id);
+
+        io.to(roomId).emit("rematchCanceled", {
+            by: socket.id,
+            ready: votes.size,
+            total: room.players.length
+        });
+
+        if (votes.size === 0) {
+            delete rematchVotes[roomId];
+            io.to(roomId).emit("rematchReset");
+        }
+    }
 
     // notify others
     io.to(roomId).emit("playerDisconnected", socket.id);
 
     broadcastRoomUpdate(roomId);
 
-    // delete empty room
+    // ROOM EMPTY → HARD CLEAN
     if (room.players.length === 0) {
 
         delete rematchVotes[roomId];
         delete rooms[roomId];
 
+        io.to(roomId).emit("rematchReset"); // optional safety (safe emit even if empty)
+
         return;
     }
 
-	// remaining player wins / room closes
-	if (room.players.length < 2) {
-	
-		// CLEAR REMATCH STATE
-		delete rematchVotes[roomId];
-	
-		io.to(roomId).emit("rematchCanceled", {
-			by: socket.id,
-			ready: 0,
-			total: room.players.length
-		});
-	
-		io.to(roomId).emit("matchForceClosed");
-	
-		// delete room immediately
-		delete rooms[roomId];
-	}
+    // ONLY 1 PLAYER LEFT → FORCE CLOSE
+    if (room.players.length < 2) {
+
+        delete rematchVotes[roomId];
+
+        io.to(roomId).emit("rematchCanceled", {
+            by: socket.id,
+            ready: 0,
+            total: room.players.length
+        });
+
+        io.to(roomId).emit("rematchReset");
+        io.to(roomId).emit("matchForceClosed");
+
+        delete rooms[roomId];
+    }
 }
 
 /* REMATCH SYSTEM */
@@ -369,24 +374,34 @@ io.on("connection", (socket) => {
 	});
 
 	socket.on("cancelRematch", ({ room }) => {
+		const votes = rematchVotes[room];
 	
-		if (!rematchVotes[room]) {
-			rematchVotes[room] = new Set();
+		if (!votes) {
+			// still notify client to force UI reset
+			socket.emit("rematchCanceled", {
+				by: socket.id,
+				ready: 0,
+				total: rooms[room]?.players.length || 0
+			});
+			return;
 		}
 	
-		rematchVotes[room].delete(socket.id);
+		votes.delete(socket.id);
 	
-		const total =
-			rooms[room]?.players.length || 0;
+		const total = rooms[room]?.players.length || 0;
 	
 		io.to(room).emit("rematchCanceled", {
 			by: socket.id,
-			ready: rematchVotes[room].size,
+			ready: votes.size,
 			total
 		});
 	
-		if (rematchVotes[room].size <= 0) {
+		// HARD RESET when empty
+		if (votes.size === 0) {
 			delete rematchVotes[room];
+	
+			// force all clients to clear UI state
+			io.to(room).emit("rematchReset");
 		}
 	});
 
