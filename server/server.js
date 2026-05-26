@@ -31,7 +31,20 @@ const playerRoom = {};   // socket.id -> roomId
 const rematchVotes = {}; // roomId -> Set(socket.id)
 
 /* -----------------------------
-   HELPERS
+   REMATCH CORE (FIXED)
+----------------------------- */
+
+function forceResetRematch(roomId, by = null) {
+    delete rematchVotes[roomId];
+
+    io.to(roomId).emit("rematchForceReset", {
+        by,
+        timestamp: Date.now()
+    });
+}
+
+/* -----------------------------
+   ROOM HELPERS
 ----------------------------- */
 
 function broadcastRoomUpdate(roomId) {
@@ -47,27 +60,19 @@ function broadcastRoomUpdate(roomId) {
     io.to(roomId).emit("playerCount", room.players.length);
 }
 
-/* -----------------------------
-   REMATCH SAFETY CORE
------------------------------ */
+function joinRoom(socket, roomId) {
+    socket.join(roomId);
 
-function resetRematch(roomId, payload = {}) {
+    playerRoom[socket.id] = roomId;
+
     const room = rooms[roomId];
-    const votes = rematchVotes[roomId];
+    room.players.push(socket.id);
 
-    if (votes) delete rematchVotes[roomId];
-
-    io.to(roomId).emit("rematchCanceled", {
-        by: payload.by || null,
-        ready: 0,
-        total: room?.players?.length || 0
-    });
-
-    io.to(roomId).emit("rematchReset");
+    broadcastRoomUpdate(roomId);
 }
 
 /* -----------------------------
-   ROOM CLEANUP
+   ROOM CLEANUP (FIXED)
 ----------------------------- */
 
 function removePlayerFromRoom(socket) {
@@ -85,8 +90,8 @@ function removePlayerFromRoom(socket) {
 
     socket.leave(roomId);
 
-    // ALWAYS reset rematch first
-    resetRematch(roomId, { by: socket.id });
+    // ALWAYS kill rematch first
+    forceResetRematch(roomId, socket.id);
 
     io.to(roomId).emit("playerDisconnected", socket.id);
 
@@ -94,19 +99,14 @@ function removePlayerFromRoom(socket) {
 
     // ROOM EMPTY
     if (room.players.length === 0) {
-        setTimeout(() => {
-            delete rooms[roomId];
-        }, 50);
+        delete rooms[roomId];
         return;
     }
 
     // NOT ENOUGH PLAYERS
     if (room.players.length < 2) {
         io.to(roomId).emit("matchForceClosed");
-
-        setTimeout(() => {
-            delete rooms[roomId];
-        }, 50);
+        delete rooms[roomId];
         return;
     }
 }
@@ -166,29 +166,12 @@ io.on("connection", (socket) => {
         io.to(room).emit("playerCount", r.players.length);
     });
 
-    function joinRoom(socket, roomId) {
-        socket.join(roomId);
-
-        playerRoom[socket.id] = roomId;
-
-        const room = rooms[roomId];
-        room.players.push(socket.id);
-
-        broadcastRoomUpdate(roomId);
-    }
-
     /* MATCHMAKING */
     socket.on("findMatch", ({ maxPlayers, rankPoints, anyRank = false }) => {
 
-        matchmakingQueue =
-            matchmakingQueue.filter(p => p.socket.connected);
+        matchmakingQueue = matchmakingQueue.filter(p => p.socket.connected);
 
-        const already = matchmakingQueue.find(p => p.socket.id === socket.id);
-
-        if (already) {
-            already.anyRank = anyRank;
-            return;
-        }
+        if (matchmakingQueue.find(p => p.socket.id === socket.id)) return;
 
         let index = -1;
 
@@ -273,7 +256,10 @@ io.on("connection", (socket) => {
         socket.to(room).emit("opponentLeft");
     });
 
-    /* REMATCH */
+    /* -----------------------------
+       REMATCH (FIXED FLOW)
+    ----------------------------- */
+
     socket.on("rematchRequest", ({ room }) => {
         if (!rematchVotes[room]) {
             rematchVotes[room] = new Set();
@@ -283,7 +269,7 @@ io.on("connection", (socket) => {
 
         const roomData = rooms[room];
         if (!roomData || roomData.players.length < 2) {
-            resetRematch(room, { by: socket.id });
+            forceResetRematch(room, socket.id);
             return;
         }
 
@@ -293,7 +279,6 @@ io.on("connection", (socket) => {
         });
 
         if (rematchVotes[room].size >= roomData.players.length) {
-
             delete rematchVotes[room];
 
             roomData.ready.clear();
@@ -306,7 +291,7 @@ io.on("connection", (socket) => {
         const votes = rematchVotes[room];
 
         if (!votes) {
-            resetRematch(room, { by: socket.id });
+            forceResetRematch(room, socket.id);
             return;
         }
 
@@ -319,21 +304,18 @@ io.on("connection", (socket) => {
         });
 
         if (votes.size === 0) {
-            resetRematch(room, { by: socket.id });
+            forceResetRematch(room, socket.id);
         }
     });
 
     /* FORCE END */
     socket.on("forceEnd", ({ room }) => {
         io.to(room).emit("matchForceClosed");
-        resetRematch(room, { by: socket.id });
-
-        setTimeout(() => {
-            delete rooms[room];
-        }, 50);
+        forceResetRematch(room, socket.id);
+        delete rooms[room];
     });
 
-    /* LEAVE */
+    /* LEAVE ROOM */
     socket.on("leaveRoom", () => {
         removePlayerFromRoom(socket);
     });
@@ -349,7 +331,7 @@ io.on("connection", (socket) => {
         const roomId = playerRoom[socket.id];
 
         if (roomId) {
-            resetRematch(roomId, { by: socket.id });
+            forceResetRematch(roomId, socket.id);
         }
 
         removePlayerFromRoom(socket);
