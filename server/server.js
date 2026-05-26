@@ -54,41 +54,72 @@ function broadcastRoomUpdate(roomId) {
 }
 
 function removePlayerFromRoom(socket) {
+
     const roomId = playerRoom[socket.id];
     if (!roomId) return;
 
     const room = rooms[roomId];
     if (!room) return;
 
-    room.players = room.players.filter(p => p !== socket.id);
+    room.players =
+        room.players.filter(p => p !== socket.id);
+
     room.ready.delete(socket.id);
 
     delete playerRoom[socket.id];
 
     socket.leave(roomId);
 
-    // notify others
-    io.to(roomId).emit("playerDisconnected", socket.id);
-    broadcastRoomUpdate(roomId);
-
-    // if empty room delete
-    if (room.players.length === 0) {
-        delete rooms[roomId];
-        return;
-    }
-
-    // if host left or not enough players
-    if (room.players.length < 2) {
-        io.to(roomId).emit("matchForceClosed");
-        delete rooms[roomId];
-    }
-	
+    // REMOVE REMATCH VOTE
     if (rematchVotes[roomId]) {
+
         rematchVotes[roomId].delete(socket.id);
+
+        // notify remaining player
+        io.to(roomId).emit("rematchCanceled", {
+            by: socket.id,
+            ready: rematchVotes[roomId].size,
+            total: room.players.length
+        });
 
         if (rematchVotes[roomId].size <= 0) {
             delete rematchVotes[roomId];
         }
+    }
+
+    // notify others
+    io.to(roomId).emit("playerDisconnected", socket.id);
+
+    broadcastRoomUpdate(roomId);
+
+    // delete empty room
+    if (room.players.length === 0) {
+
+        delete rematchVotes[roomId];
+        delete rooms[roomId];
+
+        return;
+    }
+
+    // remaining player wins / room closes
+    if (room.players.length < 2) {
+
+        io.to(roomId).emit("matchForceClosed");
+
+        // IMPORTANT:
+        // don't instantly delete room
+        // allow cancelRematch to still work briefly
+
+        setTimeout(() => {
+
+            if (rooms[roomId] &&
+                rooms[roomId].players.length < 2) {
+
+                delete rematchVotes[roomId];
+                delete rooms[roomId];
+            }
+
+        }, 3000);
     }
 }
 
@@ -339,10 +370,13 @@ io.on("connection", (socket) => {
 	
 		rematchVotes[room].delete(socket.id);
 	
+		const total =
+			rooms[room]?.players.length || 0;
+	
 		io.to(room).emit("rematchCanceled", {
 			by: socket.id,
 			ready: rematchVotes[room].size,
-			total: rooms[room]?.players.length || 0
+			total
 		});
 	
 		if (rematchVotes[room].size <= 0) {
