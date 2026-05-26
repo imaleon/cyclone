@@ -70,7 +70,7 @@ function removePlayerFromRoom(socket) {
 
     socket.leave(roomId);
 
-    // REMOVE REMATCH VOTE
+	// REMOVE REMATCH VOTE
 	if (rematchVotes[roomId]) {
 	
 		rematchVotes[roomId].delete(socket.id);
@@ -80,9 +80,6 @@ function removePlayerFromRoom(socket) {
 			ready: rematchVotes[roomId].size,
 			total: room.players.length
 		});
-	
-		// DON'T delete yet
-		// keep it alive briefly so cancelRematch still works
 	}
 
     // notify others
@@ -99,26 +96,23 @@ function removePlayerFromRoom(socket) {
         return;
     }
 
-    // remaining player wins / room closes
-    if (room.players.length < 2) {
-
-        io.to(roomId).emit("matchForceClosed");
-
-        // IMPORTANT:
-        // don't instantly delete room
-        // allow cancelRematch to still work briefly
-
-        setTimeout(() => {
-
-            if (rooms[roomId] &&
-                rooms[roomId].players.length < 2) {
-
-                delete rematchVotes[roomId];
-                delete rooms[roomId];
-            }
-
-        }, 3000);
-    }
+	// remaining player wins / room closes
+	if (room.players.length < 2) {
+	
+		// CLEAR REMATCH STATE
+		delete rematchVotes[roomId];
+	
+		io.to(roomId).emit("rematchCanceled", {
+			by: socket.id,
+			ready: 0,
+			total: room.players.length
+		});
+	
+		io.to(roomId).emit("matchForceClosed");
+	
+		// delete room immediately
+		delete rooms[roomId];
+	}
 }
 
 /* REMATCH SYSTEM */
@@ -350,7 +344,19 @@ io.on("connection", (socket) => {
 		});
 	
 		const roomData = rooms[room];
-		if (!roomData) return;
+		
+		if (!roomData || roomData.players.length < 2) {
+		
+			delete rematchVotes[room];
+		
+			socket.emit("rematchCanceled", {
+				by: socket.id,
+				ready: 0,
+				total: 0
+			});
+		
+			return;
+		}
 	
 		if (rematchVotes[room].size >= roomData.players.length) {
 	
