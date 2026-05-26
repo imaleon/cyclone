@@ -71,21 +71,19 @@ function removePlayerFromRoom(socket) {
     socket.leave(roomId);
 
     // REMOVE REMATCH VOTE
-    if (rematchVotes[roomId]) {
-
-        rematchVotes[roomId].delete(socket.id);
-
-        // notify remaining player
-        io.to(roomId).emit("rematchCanceled", {
-            by: socket.id,
-            ready: rematchVotes[roomId].size,
-            total: room.players.length
-        });
-
-        if (rematchVotes[roomId].size <= 0) {
-            delete rematchVotes[roomId];
-        }
-    }
+	if (rematchVotes[roomId]) {
+	
+		rematchVotes[roomId].delete(socket.id);
+	
+		io.to(roomId).emit("rematchCanceled", {
+			by: socket.id,
+			ready: rematchVotes[roomId].size,
+			total: room.players.length
+		});
+	
+		// DON'T delete yet
+		// keep it alive briefly so cancelRematch still works
+	}
 
     // notify others
     io.to(roomId).emit("playerDisconnected", socket.id);
@@ -366,7 +364,9 @@ io.on("connection", (socket) => {
 
 	socket.on("cancelRematch", ({ room }) => {
 	
-		if (!rematchVotes[room]) return;
+		if (!rematchVotes[room]) {
+			rematchVotes[room] = new Set();
+		}
 	
 		rematchVotes[room].delete(socket.id);
 	
