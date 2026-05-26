@@ -13,7 +13,7 @@ const io = new Server(server, {
     cors: {
         origin: "*",
         methods: ["GET", "POST"]
-    }
+    },
 });
 
 const PORT = process.env.PORT || 3000;
@@ -23,49 +23,22 @@ const PORT = process.env.PORT || 3000;
 ----------------------------- */
 
 let onlineCount = 0;
+
 let matchmakingQueue = [];
 
-const rooms = {};        // roomId -> { players: [], ready: Set, maxPlayers }
-const playerRoom = {};   // socket.id -> roomId
-const rematchVotes = {}; // roomId -> Set(socket.id)
+const rooms = {}; 
+// roomId -> { players: [], ready: Set, maxPlayers }
+
+const playerRoom = {}; 
+// socket.id -> roomId
 
 /* -----------------------------
-   REMATCH HELPERS
+   HELPERS
 ----------------------------- */
 
-function forceResetRematch(roomId, by = null) {
-    delete rematchVotes[roomId];
-
-    io.to(roomId).emit("rematchForceReset", {
-        by,
-        timestamp: Date.now()
-    });
+function getRoom(roomId) {
+    return rooms[roomId];
 }
-
-function cleanupSocketFromRematch(socketId) {
-    for (const roomId in rematchVotes) {
-        const votes = rematchVotes[roomId];
-        if (!votes) continue;
-
-        if (votes.has(socketId)) {
-            votes.delete(socketId);
-
-            io.to(roomId).emit("rematchCanceled", {
-                by: socketId,
-                ready: votes.size,
-                total: rooms[roomId]?.players.length || 0
-            });
-
-            if (votes.size === 0) {
-                delete rematchVotes[roomId];
-            }
-        }
-    }
-}
-
-/* -----------------------------
-   ROOM HELPERS
------------------------------ */
 
 function broadcastRoomUpdate(roomId) {
     const room = rooms[roomId];
@@ -80,22 +53,8 @@ function broadcastRoomUpdate(roomId) {
     io.to(roomId).emit("playerCount", room.players.length);
 }
 
-function joinRoom(socket, roomId) {
-    socket.join(roomId);
-
-    playerRoom[socket.id] = roomId;
-
-    const room = rooms[roomId];
-    room.players.push(socket.id);
-
-    broadcastRoomUpdate(roomId);
-}
-
-/* -----------------------------
-   ROOM CLEANUP
------------------------------ */
-
 function removePlayerFromRoom(socket) {
+
     const roomId = playerRoom[socket.id];
     if (!roomId) return;
 
@@ -109,25 +68,60 @@ function removePlayerFromRoom(socket) {
 
     socket.leave(roomId);
 
-    // IMPORTANT: cleanup rematch state
-    cleanupSocketFromRematch(socket.id);
-    forceResetRematch(roomId, socket.id);
+    const votes = rematchVotes[roomId];
 
+    // REMOVE REMATCH VOTE
+    if (votes) {
+        votes.delete(socket.id);
+
+        io.to(roomId).emit("rematchCanceled", {
+            by: socket.id,
+            ready: votes.size,
+            total: room.players.length
+        });
+
+        if (votes.size === 0) {
+            delete rematchVotes[roomId];
+            io.to(roomId).emit("rematchReset");
+        }
+    }
+
+    // notify others
     io.to(roomId).emit("playerDisconnected", socket.id);
 
     broadcastRoomUpdate(roomId);
 
+    // ROOM EMPTY → HARD CLEAN
     if (room.players.length === 0) {
+
+        delete rematchVotes[roomId];
         delete rooms[roomId];
+
+        io.to(roomId).emit("rematchReset"); // optional safety (safe emit even if empty)
+
         return;
     }
 
+    // ONLY 1 PLAYER LEFT → FORCE CLOSE
     if (room.players.length < 2) {
+
+        delete rematchVotes[roomId];
+
+        io.to(roomId).emit("rematchCanceled", {
+            by: socket.id,
+            ready: 0,
+            total: room.players.length
+        });
+
+        io.to(roomId).emit("rematchReset");
         io.to(roomId).emit("matchForceClosed");
+
         delete rooms[roomId];
-        return;
     }
 }
+
+/* REMATCH SYSTEM */
+const rematchVotes = {};
 
 /* -----------------------------
    SOCKET
@@ -137,24 +131,43 @@ io.on("connection", (socket) => {
     onlineCount++;
     io.emit("onlineCount", onlineCount);
 
-    socket.on("login", ({ username, rank, rankPoints }) => {
-        socket.data.username = username || "PLAYER";
-        socket.data.rank = rank || "BRONZE";
-        socket.data.rankPoints = rankPoints || 0;
-    });
+    /* LOGIN */
+	socket.on("login", ({
+		username,
+		rank,
+		rankPoints
+	}) => {
+	
+		socket.data.username =
+			username || "PLAYER";
+	
+		socket.data.rank =
+			rank || "BRONZE";
+	
+		socket.data.rankPoints =
+			rankPoints || 0;
+	});
 
+    /* LOBBY CHAT */
     socket.on("lobbyChatMessage", (msg) => {
         io.emit("lobbyChatMessage", msg);
     });
 
+    /* MATCH CHAT */
     socket.on("matchChatMessage", ({ room, username, msg }) => {
-        socket.to(room).emit("matchChatMessage", { username, msg });
+        // IMPORTANT FIX: only emit to room except sender (prevents double echo bugs)
+        socket.to(room).emit("matchChatMessage", {
+            username,
+            msg
+        });
     });
 
-    /* ---------------- ROOM ---------------- */
-
+    /* CREATE ROOM */
     socket.on("createRoom", ({ room, maxPlayers }) => {
-        if (rooms[room]) return socket.emit("roomFull");
+        if (rooms[room]) {
+            socket.emit("roomFull");
+            return;
+        }
 
         rooms[room] = {
             players: [],
@@ -162,92 +175,144 @@ io.on("connection", (socket) => {
             maxPlayers
         };
 
-        joinRoom(socket, room);
+        joinRoomInternal(socket, room);
+
         socket.emit("roomCreated", room);
     });
 
+    /* JOIN ROOM */
     socket.on("joinRoom", ({ room }) => {
         const r = rooms[room];
-        if (!r) return socket.emit("roomNotFound");
-        if (r.players.length >= r.maxPlayers) return socket.emit("roomFull");
 
-        joinRoom(socket, room);
-        socket.emit("roomJoined", room);
-
-        io.to(room).emit("playerCount", r.players.length);
-    });
-
-    /* ---------------- MATCHMAKING ---------------- */
-
-    socket.on("findMatch", ({ maxPlayers, rankPoints, anyRank = false }) => {
-        matchmakingQueue = matchmakingQueue.filter(p => p.socket.connected);
-
-        if (matchmakingQueue.find(p => p.socket.id === socket.id)) return;
-
-        let index = -1;
-
-        if (!anyRank) {
-            index = matchmakingQueue.findIndex(p =>
-                p.maxPlayers === maxPlayers &&
-                !p.anyRank &&
-                Math.abs((p.rankPoints || 0) - rankPoints) <= 300
-            );
-        } else {
-            index = matchmakingQueue.findIndex(p =>
-                p.maxPlayers === maxPlayers
-            );
-        }
-
-        if (index !== -1) {
-            const opponent = matchmakingQueue.splice(index, 1)[0];
-
-            const room = Math.random().toString(36).substring(2, 7).toUpperCase();
-
-            rooms[room] = {
-                players: [],
-                ready: new Set(),
-                maxPlayers
-            };
-
-            joinRoom(socket, room);
-            joinRoom(opponent.socket, room);
-
-            socket.emit("matchFound", { room });
-            opponent.socket.emit("matchFound", { room });
-
+        if (!r) {
+            socket.emit("roomNotFound");
             return;
         }
 
-        matchmakingQueue.push({
-            socket,
-            maxPlayers,
-            rankPoints,
-            anyRank
-        });
+        if (r.players.length >= r.maxPlayers) {
+            socket.emit("roomFull");
+            return;
+        }
+
+        joinRoomInternal(socket, room);
+
+        socket.emit("roomJoined", room);
+        io.to(room).emit("playerCount", r.players.length);
     });
 
-    socket.on("leaveQueue", () => {
-        matchmakingQueue =
-            matchmakingQueue.filter(p => p.socket.id !== socket.id);
-    });
+    function joinRoomInternal(socket, roomId) {
+        socket.join(roomId);
 
-    /* ---------------- READY ---------------- */
+        playerRoom[socket.id] = roomId;
 
+        const room = rooms[roomId];
+        room.players.push(socket.id);
+
+        broadcastRoomUpdate(roomId);
+    }
+
+    /* FIND MATCH (simple queue system) */
+	socket.on("findMatch", ({
+		maxPlayers,
+		rankPoints,
+		anyRank = false
+	}) => {
+	
+		// REMOVE DEAD SOCKETS
+		matchmakingQueue =
+			matchmakingQueue.filter(
+				p => p.socket.connected
+			);
+	
+		// PREVENT DUPLICATES
+		const alreadyQueued =
+			matchmakingQueue.find(
+				p => p.socket.id === socket.id
+			);
+	
+		if (alreadyQueued) {
+	
+			// UPDATE SEARCH MODE
+			alreadyQueued.anyRank = anyRank;
+	
+			return;
+		}
+	
+		let index = -1;
+	
+		// SAME RANK SEARCH
+		if (!anyRank) {
+	
+			index = matchmakingQueue.findIndex(p =>
+	
+				p.maxPlayers === maxPlayers &&
+	
+				!p.anyRank &&
+	
+				Math.abs(
+					(p.rankPoints || 0) - rankPoints
+				) <= 300
+			);
+	
+		} else {
+	
+			// ANY RANK FALLBACK
+			index = matchmakingQueue.findIndex(p =>
+	
+				p.maxPlayers === maxPlayers
+			);
+		}
+	
+		// MATCH FOUND
+		if (index !== -1) {
+	
+			const opponent =
+				matchmakingQueue.splice(index, 1)[0];
+	
+			const room = Math.random()
+				.toString(36)
+				.substring(2, 7)
+				.toUpperCase();
+	
+			rooms[room] = {
+				players: [],
+				ready: new Set(),
+				maxPlayers
+			};
+	
+			joinRoomInternal(socket, room);
+			joinRoomInternal(opponent.socket, room);
+	
+			socket.emit("matchFound", { room });
+			opponent.socket.emit("matchFound", { room });
+	
+			return;
+		}
+	
+		// ADD TO QUEUE
+		matchmakingQueue.push({
+			socket,
+			maxPlayers,
+			rankPoints,
+			anyRank
+		});
+	});
+
+    /* READY */
     socket.on("playerReady", (room) => {
         const r = rooms[room];
         if (!r) return;
 
         r.ready.add(socket.id);
+
         broadcastRoomUpdate(room);
 
-        if (r.ready.size === r.maxPlayers &&
-            r.players.length === r.maxPlayers) {
+        if (r.ready.size === r.maxPlayers && r.players.length === r.maxPlayers) {
             io.to(room).emit("startMatch");
         }
     });
 
-    /* ---------------- GAME SYNC ---------------- */
-
+    /* GAME SYNC */
     socket.on("board", ({ room, board }) => {
         socket.to(room).emit("enemyBoard", {
             id: socket.id,
@@ -255,12 +320,12 @@ io.on("connection", (socket) => {
         });
     });
 
+    /* GARBAGE */
     socket.on("garbage", ({ room, garbage }) => {
         socket.to(room).emit("receiveGarbage", garbage);
     });
 
-    /* ---------------- MATCH END ---------------- */
-
+    /* LOSE / WIN */
     socket.on("lost", (room) => {
         socket.to(room).emit("win");
         io.to(room).emit("matchEnded");
@@ -270,83 +335,108 @@ io.on("connection", (socket) => {
         socket.to(room).emit("opponentLeft");
     });
 
-    /* ---------------- REMATCH ---------------- */
+	socket.on("rematchRequest", ({ room }) => {
+	
+		if (!rematchVotes[room]) {
+			rematchVotes[room] = new Set();
+		}
+	
+		rematchVotes[room].add(socket.id);
+	
+		io.to(room).emit("rematchPlayerJoined", {
+			ready: rematchVotes[room].size,
+			total: rooms[room]?.players.length || 0
+		});
+	
+		const roomData = rooms[room];
+		
+		if (!roomData || roomData.players.length < 2) {
+		
+			delete rematchVotes[room];
+		
+			socket.emit("rematchCanceled", {
+				by: socket.id,
+				ready: 0,
+				total: 0
+			});
+		
+			return;
+		}
+	
+		if (rematchVotes[room].size >= roomData.players.length) {
+	
+			delete rematchVotes[room];
+	
+			roomData.ready.clear();
+	
+			io.to(room).emit("rematchStart");
+		}
+	});
 
-    socket.on("rematchRequest", ({ room }) => {
-        if (!rematchVotes[room]) {
-            rematchVotes[room] = new Set();
-        }
+	socket.on("cancelRematch", ({ room }) => {
+		const votes = rematchVotes[room];
+	
+		if (!votes) {
+			// still notify client to force UI reset
+			socket.emit("rematchCanceled", {
+				by: socket.id,
+				ready: 0,
+				total: rooms[room]?.players.length || 0
+			});
+			return;
+		}
+	
+		votes.delete(socket.id);
+	
+		const total = rooms[room]?.players.length || 0;
+	
+		io.to(room).emit("rematchCanceled", {
+			by: socket.id,
+			ready: votes.size,
+			total
+		});
+	
+		// HARD RESET when empty
+		if (votes.size === 0) {
+			delete rematchVotes[room];
+	
+			// force all clients to clear UI state
+			io.to(room).emit("rematchReset");
+		}
+	});
 
-        rematchVotes[room].add(socket.id);
-
-        const roomData = rooms[room];
-        if (!roomData || roomData.players.length < 2) {
-            forceResetRematch(room, socket.id);
-            return;
-        }
-
-        io.to(room).emit("rematchPlayerJoined", {
-            ready: rematchVotes[room].size,
-            total: roomData.players.length
-        });
-
-        if (rematchVotes[room].size >= roomData.players.length) {
-            delete rematchVotes[room];
-            roomData.ready.clear();
-            io.to(room).emit("rematchStart");
-        }
-    });
-
-    socket.on("cancelRematch", ({ room }) => {
-        const votes = rematchVotes[room];
-
-        if (!votes) {
-            forceResetRematch(room, socket.id);
-            return;
-        }
-
-        votes.delete(socket.id);
-
-        io.to(room).emit("rematchCanceled", {
-            by: socket.id,
-            ready: votes.size,
-            total: rooms[room]?.players.length || 0
-        });
-
-        if (votes.size === 0) {
-            forceResetRematch(room, socket.id);
-        }
-    });
-
+    /* FORCE END */
     socket.on("forceEnd", ({ room }) => {
         io.to(room).emit("matchForceClosed");
-        forceResetRematch(room, socket.id);
         delete rooms[room];
     });
 
-    /* ---------------- LEAVE / DISCONNECT ---------------- */
-
-    socket.on("leaveRoom", () => {
+    /* LEAVE ROOM */
+    socket.on("leaveRoom", (room) => {
         removePlayerFromRoom(socket);
     });
 
-    socket.on("disconnect", () => {
-        onlineCount--;
-        io.emit("onlineCount", onlineCount);
-
-        matchmakingQueue =
-            matchmakingQueue.filter(p => p.socket.id !== socket.id);
-
-        const roomId = playerRoom[socket.id];
-
-        cleanupSocketFromRematch(socket.id);
-
-        if (roomId) {
-            forceResetRematch(roomId, socket.id);
-        }
-
-        removePlayerFromRoom(socket);
-    });
+    /* DISCONNECT */
+	socket.on("disconnect", () => {
+	
+		onlineCount--;
+		io.emit("onlineCount", onlineCount);
+	
+		matchmakingQueue =
+			matchmakingQueue.filter(
+				p => p.socket.id !== socket.id
+			);
+	
+		removePlayerFromRoom(socket);
+	});
+	
+	socket.on("leaveQueue", () => {
+	
+		matchmakingQueue =
+			matchmakingQueue.filter(
+				p => p.socket.id !== socket.id
+			);
+	});	
 });
 
 /* -----------------------------
